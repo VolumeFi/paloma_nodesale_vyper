@@ -13,7 +13,10 @@ token_name: public(String[32])
 token_symbol: public(String[32])
 owner_of: public(HashMap[uint256, address])
 token_approvals: public(HashMap[uint256, address])
-
+operator_approvals: public(HashMap[address, HashMap[address, bool]])
+token_metadata: public(HashMap[uint256, String[32]])
+owner_token_count: public(HashMap[address, uint256])
+token_owner: public(HashMap[uint256, address])
 
 funds_receiver: public(address)
 
@@ -94,8 +97,65 @@ event WhitelistAmountRedeemed:
     new_amount: uint256
 
 @external
-def __init__():
-    pass
+def __init__(_name: String[32], _symbol: String[32]):
+    self.name = _name
+    self.symbol = _symbol
+    self.token_name = _name
+    self.token_symbol = _symbol
+
+@view
+@external
+def name() -> String[32]:
+    return self.name
+
+@view
+@external
+def symbol() -> String[32]:
+    return self.symbol
+
+@view
+@external
+def tokenURI(_tokenId: uint256) -> String[32]:
+    return self.token_metadata[_tokenId]
+
+@external
+def balance_of(_owner: address) -> uint256:
+    return self.owner_token_count[_owner]
+
+@view
+@external
+def owner_of(_tokenId: uint256) -> address:
+    return self.token_owner[_tokenId]
+
+@external
+def approve(_to: address, _tokenId: uint256):
+    self.token_approvals[_tokenId] = _to
+
+@external
+def set_approval_for_all(_operator: address, _approved: bool):
+    self.operator_approvals[msg.sender][_operator] = _approved
+
+@view
+@external
+def get_approved(_tokenId: uint256) -> address:
+    return self.token_approvals[_tokenId]
+
+@view
+@external
+def is_approved_for_all(_owner: address, _operator: address) -> bool:
+    return self.operator_approvals[_owner][_operator]
+
+@internal
+def _transfer(from: address, to: address, token_id: uint256):
+    revert("NodeLicense: transfer is not allowed")
+
+@external
+def safe_transfer_from(_from: address, _to: address, _tokenId: uint256):
+    self._transfer(_from, _to, _tokenId)
+
+@external
+def safe_transfer_from(_from: address, _to: address, _tokenId: uint256, _data: bytes[1024]):
+    self._transfer(_from, _to, _tokenId)
     
 @internal
 def _paloma_check():
@@ -272,10 +332,6 @@ def get_average_cost(_tokenId: uint256) -> uint256:
 def get_mint_timestamp(_tokenId: uint256) -> uint256:
     assert _exists(_tokenId), "ERC721Metadata: Query for nonexistent token"
     return self._mint_timestamps[_tokenId]
-
-@internal
-def _transfer(from: address, to: address, token_id: uint256):
-    revert("NodeLicense: transfer is not allowed")
 
 @external
 @payable
