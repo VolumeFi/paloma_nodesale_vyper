@@ -20,8 +20,6 @@ token_owner: public(HashMap[uint256, address])
 
 funds_receiver: public(address)
 
-max_supply: public(uint256)
-
 pricing_tiers: Tier[40]
 
 referral_discount_percentage: public(uint256)
@@ -29,8 +27,10 @@ referral_reward_percentage: public(uint256)
 
 claimable: public(bool)
 
-mint_timestamps: HashMap[uint256, uint256]
+token_ids: HashMap[uint256, uint256]
+max_supply: public(uint256)
 promo_codes: HashMap[String, PromoCode]
+mint_timestamps: HashMap[uint256, uint256]
 referral_rewards: HashMap[address, uint256]
 average_cost: HashMap[uint256, uint256]
 whitelist_amounts: HashMap[address, uint256]
@@ -156,7 +156,7 @@ def safe_transfer_from(_from: address, _to: address, _tokenId: uint256):
 @external
 def safe_transfer_from(_from: address, _to: address, _tokenId: uint256, _data: bytes[1024]):
     self._transfer(_from, _to, _tokenId)
-    
+
 @internal
 def _paloma_check():
     assert msg.sender == self.compass, "Not compass"
@@ -204,11 +204,88 @@ def get_pricing_tiers_length() -> uint256:
 @external
 @payable
 def mint(_amount: uint256, _promo_code: String):
-    pass
+    # Check if the token supply exceeds the max supply
+    assert _token_ids[_token_ids.length] + _amount <= _max_supply, "Exceeds maxSupply"
+
+    # Get the promo code
+    promo_code: PromoCode = _promo_codes[_promo_code]
+
+    # Check if the promo code is valid and active
+    assert (promo_code.recipient != ZERO_ADDRESS and promo_code.active) or len(_promo_code) == 0, "Invalid or inactive promo code"
+
+    # Check if the referral address is not the sender's address
+    assert promo_code.recipient != msg.sender, "Referral address cannot be the sender's address"
+
+    # Calculate the final price
+    final_price: uint256 = price(_amount, _promo_code)
+
+    # Calculate the average cost
+    average_cost: uint256 = msg.value / _amount
+
+    # Check if the sent value is correct
+    assert msg.value >= final_price, "Ether value sent is not correct"
+
+    # Mint the tokens
+    for i in range(_amount):
+        _token_ids[_token_ids.length] += 1
+        new_item_id: uint256 = _token_ids[_token_ids.length]
+        _mint(msg.sender, new_item_id)
+
+        # Record the minting timestamp
+        _mint_timestamps[new_item_id] = block.timestamp
+
+        # Record the average cost
+        _average_cost[new_item_id] = average_cost
+
+    # Calculate the referral reward
+    referral_reward: uint256 = 0
+    if promo_code.recipient != ZERO_ADDRESS:
+        referral_reward = final_price * _referral_reward_percentage / 100
+        _referral_rewards[promo_code.recipient] += referral_reward
+        _promo_codes[_promo_code].received_lifetime += referral_reward
+        log ReferralReward(msg.sender, promo_code.recipient, referral_reward)
+
+    # Send the funds to the receiver
+    remainder: uint256 = msg.value - final_price
+    send(_funds_receiver, final_price - referral_reward)
+
+    # Send back the remainder amount
+    if remainder > 0:
+        send(msg.sender, remainder)
     
 @external
 def redeem_from_whitelist():
-    pass
+    # Define the start time
+    start_time: uint256 = 1703275200  # Fri Dec 22 2023 12:00:00 GMT-0800 (Pacific Standard Time)
+
+    # Check if the redemption period has started
+    assert block.timestamp >= start_time, "Redemption is not eligible yet"
+
+    # Check if the redemption period has ended
+    assert block.timestamp <= start_time + 30 * 24 * 60 * 60, "Redemption period has ended"
+
+    # Check if the whitelist amount is valid
+    assert _whitelist_amounts[msg.sender] > 0, "Invalid whitelist amount"
+
+    # Calculate the amount to mint
+    to_mint: uint16 = _whitelist_amounts[msg.sender]
+    if to_mint > 50:
+        to_mint = 50
+
+    # Check if the token supply exceeds the max supply
+    assert _token_ids[_token_ids.length] + to_mint <= _max_supply, "Exceeds maxSupply"
+
+    # Mint the tokens
+    for i in range(to_mint):
+        _token_ids[_token_ids.length] += 1
+        new_item_id: uint256 = _token_ids[_token_ids.length]
+        _mint(msg.sender, new_item_id)
+        _mint_timestamps[new_item_id] = block.timestamp
+
+    # Update the whitelist amount
+    new_amount: uint16 = _whitelist_amounts[msg.sender] - to_mint
+    _whitelist_amounts[msg.sender] = new_amount
+    log WhitelistAmountRedeemed(msg.sender, new_amount)
 
 @external
 @view
