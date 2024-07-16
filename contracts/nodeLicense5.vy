@@ -38,6 +38,16 @@ whitelist_amounts: HashMap[address, uint256]
 paloma: public(bytes32)
 compass: public(address)
 
+interface IUniswapV3Router:
+    def exact_input_single(
+        token_in: address,
+        amount_in: uint256,
+        token_out: address,
+        amount_out_min: uint256,
+        sqrt_price_limit_x96: uint256,
+        deadline: uint256
+    ) -> uint256: view
+
 struct Tier:
     price: uint256
     quantity: uint256
@@ -388,17 +398,6 @@ def update_whitelist_amounts(to_whitelist: address[10], amounts: uint16[10]):
         self._update_whitelist_amounts(to_whitelist[i], amounts[i])
 
 @external
-@payable
-def refund_node_license(_tokenId: uint256) -> None:
-    assert _exists(_tokenId), "ERC721Metadata: Refund for nonexistent token"
-    refund_amount: uint256 = self._average_cost[_tokenId]
-    assert refund_amount > 0, "No funds to refund"
-    self._average_cost[_tokenId] = 0
-    raw_call(owner_of(_tokenId), value=refund_amount, gas=30000)
-    log RefundOccurred(owner_of(_tokenId), refund_amount)
-    self._burn(_tokenId)
-
-@external
 @view
 def get_average_cost(_tokenId: uint256) -> uint256:
     assert _exists(_tokenId), "ERC721Metadata: Query for nonexistent token"
@@ -409,6 +408,33 @@ def get_average_cost(_tokenId: uint256) -> uint256:
 def get_mint_timestamp(_tokenId: uint256) -> uint256:
     assert _exists(_tokenId), "ERC721Metadata: Query for nonexistent token"
     return self._mint_timestamps[_tokenId]
+
+@internal
+def swap_into_usdc(token_in: address, amount_in: uint256) -> uint256:
+    # Get the Uniswap V3 Router contract
+    router: IUniswapV3Router = IUniswapV3Router(uniswap_v3_router)
+
+    # Set the amount out minimum to 1 USDC (you can adjust this value)
+    amount_out_min: uint256 = 1 * 10**6  # 1 USDC
+
+    # Set the sqrt price limit x96 to 0 (you can adjust this value)
+    sqrt_price_limit_x96: uint256 = 0
+
+    # Set the deadline to 10 minutes from now (you can adjust this value)
+    deadline: uint256 = block.timestamp + 10 * 60
+
+    # Call the exact_input_single function on the Uniswap V3 Router
+    amount_out: uint256 = router.exact_input_single(
+        token_in,
+        amount_in,
+        usdc_token,
+        amount_out_min,
+        sqrt_price_limit_x96,
+        deadline
+    )
+
+    # Return the amount of USDC received
+    return amount_out
 
 @external
 @payable
