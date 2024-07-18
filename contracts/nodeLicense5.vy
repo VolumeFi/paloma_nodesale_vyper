@@ -107,6 +107,7 @@ event WhitelistAmountRedeemed:
     new_amount: uint256
 
 @external
+@deploy
 def __init__(_name: String[32], _symbol: String[32]):
     self.name = _name
     self.symbol = _symbol
@@ -156,7 +157,7 @@ def is_approved_for_all(_owner: address, _operator: address) -> bool:
     return self.operator_approvals[_owner][_operator]
 
 @internal
-def _transfer(from: address, to: address, token_id: uint256):
+def _transfer(_from: address, _to: address, _token_id: uint256):
     revert("NodeLicense: transfer is not allowed")
 
 @external
