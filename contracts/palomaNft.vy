@@ -55,11 +55,12 @@ def owner_of(_token_id: uint256) -> address:
 @view
 @external
 def balance_of(_owner: address) -> uint256:
-    balance: uint256 = 0
-    for tokenId in self.token_owner:
-        if self.token_owner[tokenId] == _owner:
-            balance += 1
-    return balance
+    _balance: uint256 = 0
+    _token_owner: address = self.token_owner
+    for _token_id in _token_owner:
+        if _token_owner[_token_id] == _owner:
+            _balance += 1
+    return _balance
 
 @external
 def transfer_from(_from: address, _to: address, _token_id: uint256):
