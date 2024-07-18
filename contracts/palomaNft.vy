@@ -8,38 +8,67 @@
 """
 
 # Events
-event Transfer: nonpayable
+event Transfer: 
     _from: address
     _to: address
     _token_id: uint256
 
-event Approval: nonpayable
+event Approval: 
     _owner: address
     _approved: address
     _token_id: uint256
 
-event ApprovalForAll: nonpayable
+event ApprovalForAll: 
     _owner: address
     _operator: address
     _approved: bool
 
+event SetPaloma:
+    paloma: bytes32
+
+event UpdateCompass:
+    old_compass: address
+    new_compass: address
+
 # Storage
-token_owner: public(map(uint256, address))
-token_approvals: public(map(uint256, address))
-operator_approvals: public(map(address, map(address, bool)))
-token_URIs: public(map(uint256, string))
+token_owner: public(HashMap(uint256, address))
+token_approvals: public(HashMap(uint256, address))
+operator_approvals: public(HashMap(address, HashMap(address, bool)))
+token_URIs: public(HashMap(uint256, String))
 total_supply: public(uint256)
 paloma: public(bytes32)
 compass: public(address)
 
 # Constructor
 @external
-def __init__():
+@deploy
+def __init__(_compass: address):
     self.total_supply = 0
+    self.compass = _compass
+    log UpdateCompass(empty(address), _compass)
+
+@internal
+def _paloma_check():
+    assert msg.sender == self.compass, "Not compass"
+    assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
+
+@external
+def update_compass(_new_compass: address):
+    self._paloma_check()
+    self.compass = _new_compass
+    log UpdateCompass(msg.sender, _new_compass)
+
+@external
+def set_paloma():
+    assert msg.sender == self.compass and self.paloma == empty(bytes32) and len(msg.data) == 36, "Invalid"
+    _paloma: bytes32 = convert(slice(msg.data, 4, 32), bytes32)
+    self.paloma = _paloma
+    log SetPaloma(_paloma)
 
 # Minting
 @external
-def mint(_to: address, _token_id: uint256, _uri: string):
+def mint(_to: address, _token_id: uint256, _uri: String):
+    self._paloma_check()
     assert _token_id not in self.token_owner, "Token already exists"
     self.token_owner[_token_id] = _to
     self.token_owner[_token_id] = _uri
@@ -98,3 +127,8 @@ def safe_transfer_from(_from: address, _to: address, _token_id: uint256):
 @external
 def safe_transfer_from(_from: address, _to: address, _token_id: uint256, _data: bytes):
     self.transferFrom(_from, _to, _token_id)
+
+@external
+@payable
+def __default__():
+    pass
