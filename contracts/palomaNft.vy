@@ -30,22 +30,168 @@ event UpdateCompass:
     old_compass: address
     new_compass: address
 
+REWARD_TOKEN: public(immutable(address))
+SWAP_ROUTER_02: public(immutable(address))
+WETH9: public(immutable(address))
+
 # Storage
 token_owner: public(HashMap(uint256, address))
 token_approvals: public(HashMap(uint256, address))
 operator_approvals: public(HashMap(address, HashMap(address, bool)))
 token_URIs: public(HashMap(uint256, String))
 total_supply: public(uint256)
+total_supply_all_chain: public(uint256)
 paloma: public(bytes32)
 compass: public(address)
+name: public(String)
+symbol: public(String)
+token_name: public(String)
+token_symbol: public(String)
+paid_amount: public(HashMap(address, uint256))
+funds_receiver: public(address)
+pricing_tiers: Tier[40]
+referral_discount_percentage: public(uint256)
+referral_reward_percentage: public(uint256)
+token_ids: public(uint256)
+max_supply: public(uint256)
+promo_codes: HashMap[String, PromoCode]
+mint_timestamps: HashMap[uint256, uint256]
+referral_rewards: HashMap[address, uint256]
+average_cost: HashMap[uint256, uint256]
+whitelist_amounts: HashMap[address, uint256]
+
+interface ISwapRouter02:
+    def exactInputSingle(params: ExactInputSingleParams) -> uint256: view
+    def exactOutputSingle(params: ExactOutputSingleParams) -> uint256: view
+    def exactInputMultiStep(params: ExactInputParams) -> uint256: view
+    def exactOutputMultiStep(params: ExactOutputParams) -> uint256: view
+
+interface IWETH is IERC20{
+    def deposit() : payable;
+}
+
+interface ERC20:
+    def approve(_spender: address, _value: uint256) -> bool: nonpayable
+    def transfer(_to: address, _value: uint256) -> bool: nonpayable
+    def transferFrom(_from: address, _to: address, _value: uint256) -> bool: nonpayable
+
+struct ExactInputSingleParams:
+    tokenIn: address
+    tokenOut: address
+    fee: uint24
+    recipient: address
+    amountIn: uint256
+    amountOutMinimum: uint256
+    sqrtPriceLimitX96: uint160
+
+struct ExactOutputSingleParams:
+    tokenIn: address
+    tokenOut: address
+    fee: uint24
+    recipient: address
+    amountOut: uint256
+    amountInMaximum: uint256
+    sqrtPriceLimitX96: uint160
+
+struct ExactInputParams:
+    path: bytes
+    recipient: address
+    amountIn: uint256
+    amountOutMinimum: uint256
+
+struct ExactOutputParams:
+    path: bytes
+    recipient: address
+    amountOut: uint256
+    amountInMaximum: uint256
+
+struct Tier:
+    price: uint256
+    quantity: uint256
+
+struct PromoCode:
+    recipient: address
+    active: bool
+    received_lifetime: uint256
+
+event PromoCodeCreated:
+    promo_code: String
+    recipient: address
+
+event PromoCodeRemoved:
+    promo_code: String
+
+event RewardClaimed:
+    claimer: address
+    amount: uint256
+
+event PricingTierSetOrAdded:
+    index: uint256
+    price: uint256
+    quantity: uint256
+
+event ReferralRewardPercentagesChanged:
+    referral_discount_percentage: uint256
+    referral_reward_percentage: uint256
+
+event RefundOccurred:
+    refundee: address
+    amount: uint256
+
+event ReferralReward:
+    buyer: address
+    referral_address: address
+    amount: uint256
+
+event FundsWithdrawn:
+    admin: address
+    amount: uint256
+
+event FundsReceiverChanged:
+    admin: address
+    new_funds_receiver: address
+
+event ClaimableChanged:
+    admin: address
+    new_claimable_state: bool
+
+event WhitelistAmountUpdatedByAdmin:
+    redeemer: address
+    new_amount: uint256
+
+event WhitelistAmountRedeemed:
+    redeemer: address
+    new_amount: uint256
+
+event NFTMinted:
+    buyer: address
+    token_id: uint256
+    average_cost: uint256
 
 # Constructor
 @external
 @deploy
-def __init__(_compass: address):
+def __init__(_compass: address, _name: String, _symbol: String, _swap_router: address, _reward_token: address, _weth9: address):
     self.total_supply = 0
     self.compass = _compass
+    self.name = _name
+    self.symbol = _symbol
+    self.token_name = _name
+    self.token_symbol = _symbol
+    REWARD_TOKEN = _reward_token
+    SWAP_ROUTER_02 = _swap_router
+    WETH9 = _weth9
     log UpdateCompass(empty(address), _compass)
+
+@view
+@external
+def name() -> String:
+    return self.name
+
+@view
+@external
+def symbol() -> String:
+    return self.symbol
 
 @internal
 def _paloma_check():
@@ -66,14 +212,88 @@ def set_paloma():
     log SetPaloma(_paloma)
 
 # Minting
-@external
-def mint(_to: address, _token_id: uint256, _uri: String):
-    self._paloma_check()
+@internal
+def _mint(_to: address, _token_id: uint256):
     assert _token_id not in self.token_owner, "Token already exists"
     self.token_owner[_token_id] = _to
-    self.token_owner[_token_id] = _uri
     self.total_supply += 1
     log Transfer(ZERO_ADDRESS, _to, _token_id)
+
+@external
+def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: uint256):
+    self._paloma_check()
+    _promo_code: PromoCode = self.promo_codes[_promo_code_id]
+    _token_id: uint256 = self._token_id
+    assert _amount > 0, "Amount must be greater than 0"
+    assert _promo_code.recipient != _to, "Referral address cannot be the sender's address"
+    assert (_promo_code.recipient != ZERO_ADDRESS and _promo_code.active) or _promo_code.recipient == ZERO_ADDRESS, "Invalid or inactive promo code"
+
+    for i in range(_amount):
+        _token_id += 1
+        self._mint(_to, _token_id)
+        self.mint_timestamps[_token_id] = block.timestamp
+        self.average_cost[_token_id] = _average_cost
+        log NFTMinted(_to, _token_id, _average_cost)
+
+    _referral_reward: uint256 = 0
+    _final_price: uint256 = _amount * _average_cost
+    if _promo_code.recipient != ZERO_ADDRESS:
+        _referral_reward = _final_price * self.referral_reward_percentage / 100
+        self.referral_rewards[_promo_code.recipient] += referral_reward
+        self.promo_codes[_promo_code_id].received_lifetime += referral_reward
+        log ReferralReward(_to, _promo_code.recipient, _referral_reward)
+
+@external
+def refund(_to: address, _amount: uint256):
+    self._paloma_check()
+    assert _amount > 0, "Amount must be greater than 0"
+    assert ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
+    self.paid_amount[_to] = self.paid_amount[_to] - _amount
+    log RefundOccurred(_to, _amount)
+
+@external
+def pay_for_token(_token_in: address, _amount_in: uint256):
+    ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in)
+
+    _params: ExactOutputSingleParams = ExactOutputSingleParams({
+        tokenIn: _token_in,
+        tokenOut: REWARD_TOKEN,
+        fee: 3000,
+        recipient: _sender,
+        deadline: block.timestamp,
+        amountOut: 50*10**6,
+        amountInMaximum: _amount_in,
+        sqrtPriceLimitX96: 0
+    })
+
+    assert ISwapRouter02(SWAP_ROUTER_02).exactOutputSingle(_params), "swap Failed"
+
+    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _amount_out
+
+@payable
+@external
+def pay_for_eth():
+    # Wrap ETH to WETH9
+    IWETH(WETH9).deposit{value: msg.value}()
+
+    # Approve WETH9 for the swap router
+    ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value)
+
+    # Create the exact input single params
+    _params: ExactInputSingleParams = ExactInputSingleParams({
+        tokenIn: WETH9,
+        tokenOut: REWARD_TOKEN,
+        fee: 3000,
+        recipient: msg.sender,
+        amountIn: msg.value,
+        amountOutMinimum: 50 * 10**6,  # 50 USDC
+        sqrtPriceLimitX96: 0
+    })
+
+    # Execute the swap
+    assert ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params), "swap ETH Failed"
+
+    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _amount_out
 
 # ERC721 Interface
 @view

@@ -46,7 +46,7 @@ interface IUniswapV3Router:
         amount_out_min: uint256,
         sqrt_price_limit_x96: uint256,
         deadline: uint256
-    ) -> uint256: view
+    ): payable
 
 struct Tier:
     price: uint256
@@ -219,7 +219,7 @@ def mint(_amount: uint256, _promo_code: String):
     assert _token_ids[_token_ids.length] + _amount <= _max_supply, "Exceeds maxSupply"
 
     # Get the promo code
-    promo_code: PromoCode = _promo_codes[_promo_code]
+    promo_code: PromoCode = self._promo_codes[_promo_code]
 
     # Check if the promo code is valid and active
     assert (promo_code.recipient != ZERO_ADDRESS and promo_code.active) or len(_promo_code) == 0, "Invalid or inactive promo code"
