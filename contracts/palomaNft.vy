@@ -33,6 +33,7 @@ event UpdateCompass:
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
+MAX_MINTABLE_AMOUNT: constant(uint256) = 40
 
 # Storage
 token_owner: public(HashMap(uint256, address))
@@ -49,7 +50,6 @@ token_name: public(String)
 token_symbol: public(String)
 paid_amount: public(HashMap(address, uint256))
 funds_receiver: public(address)
-pricing_tiers: Tier[40]
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 token_ids: public(uint256)
@@ -66,9 +66,8 @@ interface ISwapRouter02:
     def exactInputMultiStep(params: ExactInputParams) -> uint256: view
     def exactOutputMultiStep(params: ExactOutputParams) -> uint256: view
 
-interface IWETH is IERC20{
-    def deposit() : payable
-}
+interface IWETH:
+    def deposit(): payable
 
 interface ERC20:
     def approve(_spender: address, _value: uint256) -> bool: nonpayable
@@ -295,7 +294,9 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: 
     assert _promo_code.recipient != _to, "Referral address cannot be the sender's address"
     assert (_promo_code.recipient != ZERO_ADDRESS and _promo_code.active) or _promo_code.recipient == ZERO_ADDRESS, "Invalid or inactive promo code"
 
-    for i in range(_amount):
+    for i: uint256 in range(MAX_MINTABLE_AMOUNT):
+        if i >= _amount:
+            break
         _token_id += 1
         self._mint(_to, _token_id)
         self.mint_timestamps[_token_id] = block.timestamp
@@ -322,16 +323,16 @@ def refund(_to: address, _amount: uint256):
 def pay_for_token(_token_in: address, _amount_in: uint256):
     ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in)
 
-    _params: ExactOutputSingleParams = ExactOutputSingleParams({
-        tokenIn: _token_in,
-        tokenOut: REWARD_TOKEN,
-        fee: 3000,
-        recipient: _sender,
-        deadline: block.timestamp,
-        amountOut: 50*10**6,
-        amountInMaximum: _amount_in,
-        sqrtPriceLimitX96: 0
-    })
+    _params: ExactOutputSingleParams = ExactOutputSingleParams(
+        tokenIn = _token_in,
+        tokenOut = REWARD_TOKEN,
+        fee = 3000,
+        recipient = _sender,
+        deadline = block.timestamp,
+        amountOut = 50*10**6,
+        amountInMaximum = _amount_in,
+        sqrtPriceLimitX96 = 0
+    )
 
     assert ISwapRouter02(SWAP_ROUTER_02).exactOutputSingle(_params), "swap Failed"
 
@@ -341,21 +342,21 @@ def pay_for_token(_token_in: address, _amount_in: uint256):
 @external
 def pay_for_eth():
     # Wrap ETH to WETH9
-    IWETH(WETH9).deposit{value: msg.value}()
+    IWETH(WETH9).deposit(value=msg.value)
 
     # Approve WETH9 for the swap router
     ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value)
 
     # Create the exact input single params
-    _params: ExactInputSingleParams = ExactInputSingleParams({
-        tokenIn: WETH9,
-        tokenOut: REWARD_TOKEN,
-        fee: 3000,
-        recipient: msg.sender,
-        amountIn: msg.value,
-        amountOutMinimum: 50 * 10**6,  # 50 USDC
-        sqrtPriceLimitX96: 0
-    })
+    _params: ExactInputSingleParams = ExactInputSingleParams(
+        tokenIn = WETH9,
+        tokenOut = REWARD_TOKEN,
+        fee = 3000,
+        recipient = msg.sender,
+        amountIn = msg.value,
+        amountOutMinimum = 50 * 10**6,  # 50 USDC # need to change
+        sqrtPriceLimitX96 = 0
+    )
 
     # Execute the swap
     assert ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params), "swap ETH Failed"
@@ -365,12 +366,12 @@ def pay_for_eth():
 # ERC721 Interface
 @view
 @external
-def owner_of(_token_id: uint256) -> address:
+def ownerOf(_token_id: uint256) -> address:
     return self.token_owner[_token_id]
 
 @view
 @external
-def balance_of(_owner: address) -> uint256:
+def balanceOf(_owner: address) -> uint256:
     _balance: uint256 = 0
     _token_owner: address = self.token_owner
     for _token_id in _token_owner:
@@ -392,7 +393,7 @@ def transfer_from(_from: address, _to: address, _token_id: uint256):
     # assert _to != ZERO_ADDRESS, "Cannot transfer to zero address"
     # self.token_owner[_token_id] = _to
     # log Transfer(_from, _to, _token_id)
-    pass
+    raise "transfer isnt available"
 
 @external
 def approve(_approved: address, _token_id: uint256):
