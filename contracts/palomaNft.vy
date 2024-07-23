@@ -35,6 +35,7 @@ struct ExactInputSingleParams:
     tokenOut: address
     fee: uint24
     recipient: address
+    deadline: uint256
     amountIn: uint256
     amountOutMinimum: uint256
     sqrtPriceLimitX96: uint160
@@ -44,6 +45,7 @@ struct ExactOutputSingleParams:
     tokenOut: address
     fee: uint24
     recipient: address
+    deadline: uint256
     amountOut: uint256
     amountInMaximum: uint256
     sqrtPriceLimitX96: uint160
@@ -58,11 +60,11 @@ struct PromoCode:
     received_lifetime: uint256
 
 event PromoCodeCreated:
-    promo_code: String
+    promo_code: String[10]
     recipient: address
 
 event PromoCodeRemoved:
-    promo_code: String
+    promo_code: String[10]
 
 event RewardClaimed:
     claimer: address
@@ -108,21 +110,20 @@ WETH9: public(immutable(address))
 MAX_MINTABLE_AMOUNT: constant(uint256) = 40
 
 # Storage
-token_owner: public(HashMap(uint256, address))
-token_approvals: public(HashMap(uint256, address))
-operator_approvals: public(HashMap(address, HashMap(address, bool)))
-token_URIs: public(HashMap(uint256, String))
+ownerOf: public(HashMap[uint256, address])
+balanceOf: public(HashMap[address, uint256])
+token_approvals: public(HashMap[uint256, address])
+operator_approvals: public(HashMap[address, HashMap[address, bool]])
 total_supply: public(uint256)
-total_supply_all_chain: public(uint256)
 paloma: public(bytes32)
 compass: public(address)
-paid_amount: public(HashMap(address, uint256))
+paid_amount: public(HashMap[address, uint256])
 funds_receiver: public(address)
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
-token_ids: public(uint256)
 max_supply: public(uint256)
-promo_codes: HashMap[String, PromoCode]
+claimable: public(bool)
+promo_codes: HashMap[String[10], PromoCode]
 mint_timestamps: HashMap[uint256, uint256]
 referral_rewards: HashMap[address, uint256]
 average_cost: HashMap[uint256, uint256]
@@ -131,8 +132,6 @@ whitelist_amounts: HashMap[address, uint256]
 interface ISwapRouter02:
     def exactInputSingle(params: ExactInputSingleParams) -> uint256: view
     def exactOutputSingle(params: ExactOutputSingleParams) -> uint256: view
-    def exactInputMultiStep(params: ExactInputParams) -> uint256: view
-    def exactOutputMultiStep(params: ExactOutputParams) -> uint256: view
 
 interface IWETH:
     def deposit(): payable
@@ -143,7 +142,6 @@ interface ERC20:
     def transferFrom(_from: address, _to: address, _value: uint256) -> bool: nonpayable
 
 # Constructor
-@external
 @deploy
 def __init__(_compass: address, _swap_router: address, _reward_token: address, _weth9: address):
     self.total_supply = 0
@@ -152,11 +150,6 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     SWAP_ROUTER_02 = _swap_router
     WETH9 = _weth9
     log UpdateCompass(empty(address), _compass)
-
-@view
-@external
-def tokenURI(_token_id: uint256) -> String:
-    return self.token_metadata[_token_id]
 
 @internal
 def _paloma_check():
@@ -181,15 +174,15 @@ def set_paloma():
     log SetPaloma(_paloma)
 
 @external
-def create_promo_code(_promo_code: String, _recipient: address):
+def create_promo_code(_promo_code: String[10], _recipient: address):
     self._paloma_check()
 
     assert _recipient != empty(address), "Recipient address cannot be zero"
-    self.promo_codes[_promo_code] = PromoCode(_recipient, True, 0)
+    self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True, received_lifetime=0)
     log PromoCodeCreated(_promo_code, _recipient)
     
 @external
-def remove_promo_code(_promo_code: String):
+def remove_promo_code(_promo_code: String[10]):
     self._paloma_check()
 
     assert self.promo_codes[_promo_code].recipient != empty(address), "Promo code does not exist"
@@ -218,8 +211,8 @@ def set_referral_percentages(
 ):
     self._paloma_check()
 
-    assert _new_referral_discount_percentage <= 99, "Referral discount percentage cannot be greater than 99"
-    assert _new_referral_reward_percentage <= 99, "Referral reward percentage cannot be greater than 99"
+    assert _new_referral_discount_percentage <= 9900, "Referral discount percentage cannot be greater than 99"
+    assert _new_referral_reward_percentage <= 9900, "Referral reward percentage cannot be greater than 99"
     self.referral_discount_percentage = _new_referral_discount_percentage
     self.referral_reward_percentage = _new_referral_reward_percentage
     log ReferralRewardPercentagesChanged(
@@ -229,12 +222,12 @@ def set_referral_percentages(
 
 @external
 def claim_referral_reward():
-    assert self.claimable, "Claiming of referral rewards is currently disabled"
-    _reward: uint256 = self.referral_reward[msg.sender]
-    assert reward > 0, "No referral reward to claim"
-    self.referral_reward[msg.sender] = 0
-    assert ERC20(REWARD_TOKEN).transfer(msg.sender, _reward, default_return_value=True), "Claim Failed"
-    log RewardClaimed(msg.sender, _reward)
+    assert self.claimable, "Claim is not available"
+    _rewards: uint256 = self.referral_rewards[msg.sender]
+    assert _rewards > 0, "No referral reward to claim"
+    self.referral_rewards[msg.sender] = 0
+    assert extcall ERC20(REWARD_TOKEN).transfer(msg.sender, _rewards, default_return_value=True), "Claim Failed"
+    log RewardClaimed(msg.sender, _rewards)
 
 @external
 def update_whitelist_amounts(_to_whitelist: address, _amount: uint256):
@@ -244,22 +237,23 @@ def update_whitelist_amounts(_to_whitelist: address, _amount: uint256):
 
 @external
 @view
-def get_promo_code(_promo_code: String) -> PromoCode:
+def get_promo_code(_promo_code: String[10]) -> PromoCode:
     return self.promo_codes[_promo_code]
 
 # Minting
 @internal
 def _mint(_to: address, _token_id: uint256):
-    assert _token_id not in self.token_owner, "Token already exists"
-    self.token_owner[_token_id] = _to
+    assert self.ownerOf[_token_id] == empty(address), "Token already exists"
+    self.ownerOf[_token_id] = _to
+    self.balanceOf[_to] += 1
     self.total_supply += 1
     log Transfer(empty(address), _to, _token_id)
 
 @external
-def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: uint256):
+def mint(_to: address, _amount: uint256, _promo_code_id: String[10], _average_cost: uint256):
     self._paloma_check()
     _promo_code: PromoCode = self.promo_codes[_promo_code_id]
-    _token_id: uint256 = self._token_id
+    _token_id: uint256 = self.total_supply
     assert _amount > 0, "Amount must be greater than 0"
     assert _promo_code.recipient != _to, "Referral address cannot be the senders address"
     assert (_promo_code.recipient != empty(address) and _promo_code.active) or _promo_code.recipient == empty(address), "Invalid or inactive promo code"
@@ -276,7 +270,7 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: 
     _referral_reward: uint256 = 0
     _final_price: uint256 = _amount * _average_cost
     if _promo_code.recipient != empty(address):
-        _referral_reward = _final_price * self.referral_reward_percentage / 100
+        _referral_reward = unsafe_div(unsafe_mul(_final_price, self.referral_reward_percentage), 10000)
         self.referral_rewards[_promo_code.recipient] += _referral_reward
         self.promo_codes[_promo_code_id].received_lifetime += _referral_reward
         log ReferralReward(_to, _promo_code.recipient, _referral_reward)
@@ -285,37 +279,36 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: 
 def refund(_to: address, _amount: uint256):
     self._paloma_check()
     assert _amount > 0, "Amount must be greater than 0"
-    assert ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
     self.paid_amount[_to] = self.paid_amount[_to] - _amount
     log RefundOccurred(_to, _amount)
 
 @external
 def pay_for_token(_token_in: address, _amount_in: uint256):
-    ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in)
+    assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in), "approve Failed"
 
-    _params: ExactOutputSingleParams = ExactOutputSingleParams(
+    _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = _token_in,
         tokenOut = REWARD_TOKEN,
         fee = 3000,
-        recipient = _sender,
+        recipient = msg.sender,
         deadline = block.timestamp,
-        amountOut = 50*10**6,
-        amountInMaximum = _amount_in,
+        amountIn = _amount_in,
+        amountOutMinimum = 50 * 10**6,  # 50 USDC # need to change
         sqrtPriceLimitX96 = 0
     )
 
-    assert ISwapRouter02(SWAP_ROUTER_02).exactOutputSingle(_params), "swap Failed"
+    _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
-    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _amount_out
+    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _swapped_amount
 
 @payable
 @external
 def pay_for_eth():
-    # Wrap ETH to WETH9
-    IWETH(WETH9).deposit(value=msg.value)
-
     # Approve WETH9 for the swap router
-    ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value)
+    assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value), "appprove Failed"
+    # Wrap ETH to WETH9
+    extcall IWETH(WETH9).deposit(value=msg.value)
 
     # Create the exact input single params
     _params: ExactInputSingleParams = ExactInputSingleParams(
@@ -323,44 +316,34 @@ def pay_for_eth():
         tokenOut = REWARD_TOKEN,
         fee = 3000,
         recipient = msg.sender,
+        deadline = block.timestamp,
         amountIn = msg.value,
         amountOutMinimum = 50 * 10**6,  # 50 USDC # need to change
         sqrtPriceLimitX96 = 0
     )
 
     # Execute the swap
-    assert ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params), "swap ETH Failed"
+    _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
-    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _amount_out
+    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _swapped_amount
 
 @external
 def withdraw_funds(_amount: uint256):
     self._fund_receiver_check()
     _funds_receiver: address = self.funds_receiver
-    assert ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "fund withdraw Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "fund withdraw Failed"
 
     log FundsWithdrawn(msg.sender, _amount)
-
-# ERC721 Interface
-@view
-@external
-def balanceOf(_owner: address) -> uint256:
-    _balance: uint256 = 0
-    _token_owner: address = self.token_owner
-    for _token_id in _token_owner:
-        if _token_owner[_token_id] == _owner:
-            _balance += 1
-    return _balance
-
-@view
-@external
-def ownerOf(_token_id: uint256) -> address:
-    return self.token_owner[_token_id]
 
 @external
 @payable
 def safeTransferFrom(_from: address, _to: address, _token_id: uint256, _data: Bytes[1024]=b""):
-    self.transferFrom(_from, _to, _token_id)
+    self._transferFrom(_from, _to, _token_id)
+
+@internal
+@payable
+def _transferFrom(_from: address, _to: address, _token_id: uint256):
+    raise "transfer isnt available"
 
 @external
 @payable
@@ -370,9 +353,9 @@ def transferFrom(_from: address, _to: address, _token_id: uint256):
 @external
 @payable
 def approve(_to: address, _token_id: uint256):
-    assert self.token_owner[_token_id] != empty(address), "Token does not exist"
+    assert self.ownerOf[_token_id] != empty(address), "Token does not exist"
     self.token_approvals[_token_id] = _to
-    log Approval(self.token_owner[_token_id], _to, _token_id)
+    log Approval(self.ownerOf[_token_id], _to, _token_id)
 
 @external
 def setApprovalForAll(_operator: address, _approved: bool):
