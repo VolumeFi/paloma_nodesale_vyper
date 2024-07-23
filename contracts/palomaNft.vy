@@ -202,7 +202,7 @@ def set_paloma():
 def create_promo_code(_promo_code: String, _recipient: address):
     self._paloma_check()
 
-    assert _recipient != ZERO_ADDRESS, "Recipient address cannot be zero"
+    assert _recipient != empty(address), "Recipient address cannot be zero"
     self.promo_codes[_promo_code] = PromoCode(_recipient, True, 0)
     log PromoCodeCreated(_promo_code, _recipient)
     
@@ -210,7 +210,7 @@ def create_promo_code(_promo_code: String, _recipient: address):
 def remove_promo_code(_promo_code: String):
     self._paloma_check()
 
-    assert self.promo_codes[_promo_code].recipient != ZERO_ADDRESS, "Promo code does not exist"
+    assert self.promo_codes[_promo_code].recipient != empty(address), "Promo code does not exist"
     self.promo_codes[_promo_code].active = False  # 'active' is set to False
     log PromoCodeRemoved(_promo_code)
 
@@ -225,7 +225,7 @@ def set_claimable(_new_claimable: bool):
 def set_funds_receiver(_new_funds_receiver: address):
     self._fund_receiver_check()
 
-    assert _new_funds_receiver != ZERO_ADDRESS, "New fundsReceiver cannot be the zero address"
+    assert _new_funds_receiver != empty(address), "New fundsReceiver cannot be the zero address"
     self.funds_receiver = _new_funds_receiver
     log FundsReceiverChanged(msg.sender, _new_funds_receiver)
 
@@ -271,7 +271,7 @@ def _mint(_to: address, _token_id: uint256):
     assert _token_id not in self.token_owner, "Token already exists"
     self.token_owner[_token_id] = _to
     self.total_supply += 1
-    log Transfer(ZERO_ADDRESS, _to, _token_id)
+    log Transfer(empty(address), _to, _token_id)
 
 @external
 def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: uint256):
@@ -280,7 +280,7 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: 
     _token_id: uint256 = self._token_id
     assert _amount > 0, "Amount must be greater than 0"
     assert _promo_code.recipient != _to, "Referral address cannot be the senders address"
-    assert (_promo_code.recipient != ZERO_ADDRESS and _promo_code.active) or _promo_code.recipient == ZERO_ADDRESS, "Invalid or inactive promo code"
+    assert (_promo_code.recipient != empty(address) and _promo_code.active) or _promo_code.recipient == empty(address), "Invalid or inactive promo code"
 
     for i: uint256 in range(MAX_MINTABLE_AMOUNT):
         if i >= _amount:
@@ -293,7 +293,7 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: 
 
     _referral_reward: uint256 = 0
     _final_price: uint256 = _amount * _average_cost
-    if _promo_code.recipient != ZERO_ADDRESS:
+    if _promo_code.recipient != empty(address):
         _referral_reward = _final_price * self.referral_reward_percentage / 100
         self.referral_rewards[_promo_code.recipient] += _referral_reward
         self.promo_codes[_promo_code_id].received_lifetime += _referral_reward
@@ -388,7 +388,7 @@ def transferFrom(_from: address, _to: address, _token_id: uint256):
 @external
 @payable
 def approve(_to: address, _token_id: uint256):
-    assert self.token_owner[_token_id] != ZERO_ADDRESS, "Token does not exist"
+    assert self.token_owner[_token_id] != empty(address), "Token does not exist"
     self.token_approvals[_token_id] = _to
     log Approval(self.token_owner[_token_id], _to, _token_id)
 
