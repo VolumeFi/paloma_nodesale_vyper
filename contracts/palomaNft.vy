@@ -245,8 +245,8 @@ def get_promo_code(_promo_code: String[10]) -> PromoCode:
 def _mint(_to: address, _token_id: uint256):
     assert self.ownerOf[_token_id] == empty(address), "Token already exists"
     self.ownerOf[_token_id] = _to
-    self.balanceOf[_to] += 1
-    self.total_supply += 1
+    self.balanceOf[_to] = unsafe_add(self.balanceOf[_to], 1)
+    self.total_supply = unsafe_add(self.total_supply, 1)
     log Transfer(empty(address), _to, _token_id)
 
 @external
@@ -261,18 +261,18 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String[10], _average_co
     for i: uint256 in range(MAX_MINTABLE_AMOUNT):
         if i >= _amount:
             break
-        _token_id += 1
+        _token_id = unsafe_add(_token_id, 1)
         self._mint(_to, _token_id)
         self.mint_timestamps[_token_id] = block.timestamp
         self.average_cost[_token_id] = _average_cost
         log NFTMinted(_to, _token_id, _average_cost)
 
     _referral_reward: uint256 = 0
-    _final_price: uint256 = _amount * _average_cost
+    _final_price: uint256 = unsafe_mul(_amount, _average_cost)
     if _promo_code.recipient != empty(address):
         _referral_reward = unsafe_div(unsafe_mul(_final_price, self.referral_reward_percentage), 10000)
-        self.referral_rewards[_promo_code.recipient] += _referral_reward
-        self.promo_codes[_promo_code_id].received_lifetime += _referral_reward
+        self.referral_rewards[_promo_code.recipient] = unsafe_add(self.referral_rewards[_promo_code.recipient], _referral_reward)
+        self.promo_codes[_promo_code_id].received_lifetime = unsafe_add(_promo_code.received_lifetime, _referral_reward)
         log ReferralReward(_to, _promo_code.recipient, _referral_reward)
 
 @external
@@ -280,7 +280,7 @@ def refund(_to: address, _amount: uint256):
     self._paloma_check()
     assert _amount > 0, "Amount must be greater than 0"
     assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
-    self.paid_amount[_to] = self.paid_amount[_to] - _amount
+    self.paid_amount[_to] = unsafe_sub(self.paid_amount[_to], _amount)
     log RefundOccurred(_to, _amount)
 
 @external
@@ -300,7 +300,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256):
 
     _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
-    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _swapped_amount
+    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
 
 @payable
 @external
@@ -325,7 +325,7 @@ def pay_for_eth():
     # Execute the swap
     _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
-    self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _swapped_amount
+    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
 
 @external
 def withdraw_funds(_amount: uint256):
