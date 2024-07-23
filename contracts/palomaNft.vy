@@ -48,18 +48,6 @@ struct ExactOutputSingleParams:
     amountInMaximum: uint256
     sqrtPriceLimitX96: uint160
 
-struct ExactInputParams:
-    path: bytes
-    recipient: address
-    amountIn: uint256
-    amountOutMinimum: uint256
-
-struct ExactOutputParams:
-    path: bytes
-    recipient: address
-    amountOut: uint256
-    amountInMaximum: uint256
-
 struct Tier:
     price: uint256
     quantity: uint256
@@ -388,11 +376,7 @@ def ownerOf(_token_id: uint256) -> address:
     return self.token_owner[_token_id]
 
 @external
-def safeTransferFrom(_from: address, _to: address, _token_id: uint256, _data: bytes):
-    self.transferFrom(_from, _to, _token_id)
-
-@external
-def safeTransferFrom(_from: address, _to: address, _token_id: uint256):
+def safeTransferFrom(_from: address, _to: address, _token_id: uint256, _data: Bytes[1024]=b""):
     self.transferFrom(_from, _to, _token_id)
 
 @external
