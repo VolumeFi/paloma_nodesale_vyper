@@ -116,10 +116,6 @@ total_supply: public(uint256)
 total_supply_all_chain: public(uint256)
 paloma: public(bytes32)
 compass: public(address)
-name: public(String)
-symbol: public(String)
-token_name: public(String)
-token_symbol: public(String)
 paid_amount: public(HashMap(address, uint256))
 funds_receiver: public(address)
 referral_discount_percentage: public(uint256)
@@ -149,13 +145,9 @@ interface ERC20:
 # Constructor
 @external
 @deploy
-def __init__(_compass: address, _name: String, _symbol: String, _swap_router: address, _reward_token: address, _weth9: address):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _weth9: address):
     self.total_supply = 0
     self.compass = _compass
-    self.name = _name
-    self.symbol = _symbol
-    self.token_name = _name
-    self.token_symbol = _symbol
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
     WETH9 = _weth9
