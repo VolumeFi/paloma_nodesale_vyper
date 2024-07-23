@@ -9,18 +9,18 @@
 
 # Events
 event Transfer: 
-    _from: address
-    _to: address
-    _token_id: uint256
+    _from: indexed(address)
+    _to: indexed(address)
+    _token_id: indexed(uint256)
 
 event Approval: 
-    _owner: address
-    _approved: address
-    _token_id: uint256
+    _owner: indexed(address)
+    _approved: indexed(address)
+    _token_id: indexed(uint256)
 
 event ApprovalForAll: 
-    _owner: address
-    _operator: address
+    _owner: indexed(address)
+    _operator: indexed(address)
     _approved: bool
 
 event SetPaloma:
@@ -160,16 +160,6 @@ def __init__(_compass: address, _name: String, _symbol: String, _swap_router: ad
     SWAP_ROUTER_02 = _swap_router
     WETH9 = _weth9
     log UpdateCompass(empty(address), _compass)
-
-@view
-@external
-def name() -> String:
-    return self.name
-
-@view
-@external
-def symbol() -> String:
-    return self.symbol
 
 @view
 @external
