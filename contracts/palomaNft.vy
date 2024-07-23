@@ -30,50 +30,6 @@ event UpdateCompass:
     old_compass: address
     new_compass: address
 
-REWARD_TOKEN: public(immutable(address))
-SWAP_ROUTER_02: public(immutable(address))
-WETH9: public(immutable(address))
-MAX_MINTABLE_AMOUNT: constant(uint256) = 40
-
-# Storage
-token_owner: public(HashMap(uint256, address))
-token_approvals: public(HashMap(uint256, address))
-operator_approvals: public(HashMap(address, HashMap(address, bool)))
-token_URIs: public(HashMap(uint256, String))
-total_supply: public(uint256)
-total_supply_all_chain: public(uint256)
-paloma: public(bytes32)
-compass: public(address)
-name: public(String)
-symbol: public(String)
-token_name: public(String)
-token_symbol: public(String)
-paid_amount: public(HashMap(address, uint256))
-funds_receiver: public(address)
-referral_discount_percentage: public(uint256)
-referral_reward_percentage: public(uint256)
-token_ids: public(uint256)
-max_supply: public(uint256)
-promo_codes: HashMap[String, PromoCode]
-mint_timestamps: HashMap[uint256, uint256]
-referral_rewards: HashMap[address, uint256]
-average_cost: HashMap[uint256, uint256]
-whitelist_amounts: HashMap[address, uint256]
-
-interface ISwapRouter02:
-    def exactInputSingle(params: ExactInputSingleParams) -> uint256: view
-    def exactOutputSingle(params: ExactOutputSingleParams) -> uint256: view
-    def exactInputMultiStep(params: ExactInputParams) -> uint256: view
-    def exactOutputMultiStep(params: ExactOutputParams) -> uint256: view
-
-interface IWETH:
-    def deposit(): payable
-
-interface ERC20:
-    def approve(_spender: address, _value: uint256) -> bool: nonpayable
-    def transfer(_to: address, _value: uint256) -> bool: nonpayable
-    def transferFrom(_from: address, _to: address, _value: uint256) -> bool: nonpayable
-
 struct ExactInputSingleParams:
     tokenIn: address
     tokenOut: address
@@ -157,6 +113,50 @@ event NFTMinted:
     buyer: address
     token_id: uint256
     average_cost: uint256
+
+REWARD_TOKEN: public(immutable(address))
+SWAP_ROUTER_02: public(immutable(address))
+WETH9: public(immutable(address))
+MAX_MINTABLE_AMOUNT: constant(uint256) = 40
+
+# Storage
+token_owner: public(HashMap(uint256, address))
+token_approvals: public(HashMap(uint256, address))
+operator_approvals: public(HashMap(address, HashMap(address, bool)))
+token_URIs: public(HashMap(uint256, String))
+total_supply: public(uint256)
+total_supply_all_chain: public(uint256)
+paloma: public(bytes32)
+compass: public(address)
+name: public(String)
+symbol: public(String)
+token_name: public(String)
+token_symbol: public(String)
+paid_amount: public(HashMap(address, uint256))
+funds_receiver: public(address)
+referral_discount_percentage: public(uint256)
+referral_reward_percentage: public(uint256)
+token_ids: public(uint256)
+max_supply: public(uint256)
+promo_codes: HashMap[String, PromoCode]
+mint_timestamps: HashMap[uint256, uint256]
+referral_rewards: HashMap[address, uint256]
+average_cost: HashMap[uint256, uint256]
+whitelist_amounts: HashMap[address, uint256]
+
+interface ISwapRouter02:
+    def exactInputSingle(params: ExactInputSingleParams) -> uint256: view
+    def exactOutputSingle(params: ExactOutputSingleParams) -> uint256: view
+    def exactInputMultiStep(params: ExactInputParams) -> uint256: view
+    def exactOutputMultiStep(params: ExactOutputParams) -> uint256: view
+
+interface IWETH:
+    def deposit(): payable
+
+interface ERC20:
+    def approve(_spender: address, _value: uint256) -> bool: nonpayable
+    def transfer(_to: address, _value: uint256) -> bool: nonpayable
+    def transferFrom(_from: address, _to: address, _value: uint256) -> bool: nonpayable
 
 # Constructor
 @external
@@ -363,12 +363,15 @@ def pay_for_eth():
 
     self.paid_amount[msg.sender] = self.paid_amount[msg.sender] + _amount_out
 
-# ERC721 Interface
-@view
 @external
-def ownerOf(_token_id: uint256) -> address:
-    return self.token_owner[_token_id]
+def withdraw_funds(_amount: uint256):
+    self._fund_receiver_check()
+    _funds_receiver: address = self.funds_receiver
+    assert ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "fund withdraw Failed"
 
+    log FundsWithdrawn(msg.sender, _amount)
+
+# ERC721 Interface
 @view
 @external
 def balanceOf(_owner: address) -> uint256:
@@ -379,50 +382,43 @@ def balanceOf(_owner: address) -> uint256:
             _balance += 1
     return _balance
 
+@view
 @external
-def withdraw_funds(_amount: uint256):
-    self._fund_receiver_check()
-    _funds_receiver: address = self.funds_receiver
-    assert ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "fund withdraw Failed"
+def ownerOf(_token_id: uint256) -> address:
+    return self.token_owner[_token_id]
 
-    log FundsWithdrawn(msg.sender, _amount)
+@external
+def safeTransferFrom(_from: address, _to: address, _token_id: uint256, _data: bytes):
+    self.transferFrom(_from, _to, _token_id)
 
-@internal
-def transfer_from(_from: address, _to: address, _token_id: uint256):
-    # assert self.token_owner[_token_id] == _from, "Not the owner"
-    # assert _to != ZERO_ADDRESS, "Cannot transfer to zero address"
-    # self.token_owner[_token_id] = _to
-    # log Transfer(_from, _to, _token_id)
+@external
+def safeTransferFrom(_from: address, _to: address, _token_id: uint256):
+    self.transferFrom(_from, _to, _token_id)
+
+@external
+def transferFrom(_from: address, _to: address, _token_id: uint256):
     raise "transfer isnt available"
 
 @external
-def approve(_approved: address, _token_id: uint256):
+def approve(_to: address, _token_id: uint256):
     assert self.token_owner[_token_id] != ZERO_ADDRESS, "Token does not exist"
-    self.token_approvals[_token_id] = _approved
-    log Approval(self.token_owner[_token_id], _approved, _token_id)
-
-@view
-@external
-def get_approved(_token_id: uint256) -> address:
-    return self.token_approvals[_token_id]
+    self.token_approvals[_token_id] = _to
+    log Approval(self.token_owner[_token_id], _to, _token_id)
 
 @external
-def set_approval_for_all(_operator: address, _approved: bool):
+def setApprovalForAll(_operator: address, _approved: bool):
     self.operator_approvals[msg.sender][_operator] = _approved
     log ApprovalForAll(msg.sender, _operator, _approved)
 
 @view
 @external
-def is_approved_for_all(_owner: address, _operator: address) -> bool:
+def getApproved(_token_id: uint256) -> address:
+    return self.token_approvals[_token_id]
+
+@view
+@external
+def isApprovedForAll(_owner: address, _operator: address) -> bool:
     return self.operator_approvals[_owner][_operator]
-
-@external
-def safe_transfer_from(_from: address, _to: address, _token_id: uint256):
-    self.transferFrom(_from, _to, _token_id)
-
-@external
-def safe_transfer_from(_from: address, _to: address, _token_id: uint256, _data: bytes):
-    self.transferFrom(_from, _to, _token_id)
 
 @external
 @payable
