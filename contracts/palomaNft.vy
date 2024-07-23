@@ -67,7 +67,7 @@ interface ISwapRouter02:
     def exactOutputMultiStep(params: ExactOutputParams) -> uint256: view
 
 interface IWETH is IERC20{
-    def deposit() : payable;
+    def deposit() : payable
 }
 
 interface ERC20:
