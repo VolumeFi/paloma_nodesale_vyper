@@ -279,7 +279,7 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: 
     _promo_code: PromoCode = self.promo_codes[_promo_code_id]
     _token_id: uint256 = self._token_id
     assert _amount > 0, "Amount must be greater than 0"
-    assert _promo_code.recipient != _to, "Referral address cannot be the sender's address"
+    assert _promo_code.recipient != _to, "Referral address cannot be the senders address"
     assert (_promo_code.recipient != ZERO_ADDRESS and _promo_code.active) or _promo_code.recipient == ZERO_ADDRESS, "Invalid or inactive promo code"
 
     for i: uint256 in range(MAX_MINTABLE_AMOUNT):
@@ -376,14 +376,17 @@ def ownerOf(_token_id: uint256) -> address:
     return self.token_owner[_token_id]
 
 @external
+@payable
 def safeTransferFrom(_from: address, _to: address, _token_id: uint256, _data: Bytes[1024]=b""):
     self.transferFrom(_from, _to, _token_id)
 
 @external
+@payable
 def transferFrom(_from: address, _to: address, _token_id: uint256):
     raise "transfer isnt available"
 
 @external
+@payable
 def approve(_to: address, _token_id: uint256):
     assert self.token_owner[_token_id] != ZERO_ADDRESS, "Token does not exist"
     self.token_approvals[_token_id] = _to
