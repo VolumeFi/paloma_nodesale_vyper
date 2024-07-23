@@ -125,11 +125,6 @@ event RewardClaimed:
     claimer: address
     amount: uint256
 
-event PricingTierSetOrAdded:
-    index: uint256
-    price: uint256
-    quantity: uint256
-
 event ReferralRewardPercentagesChanged:
     referral_discount_percentage: uint256
     referral_reward_percentage: uint256
@@ -156,10 +151,6 @@ event ClaimableChanged:
     new_claimable_state: bool
 
 event WhitelistAmountUpdatedByAdmin:
-    redeemer: address
-    new_amount: uint256
-
-event WhitelistAmountRedeemed:
     redeemer: address
     new_amount: uint256
 
@@ -193,10 +184,19 @@ def name() -> String:
 def symbol() -> String:
     return self.symbol
 
+@view
+@external
+def tokenURI(_token_id: uint256) -> String:
+    return self.token_metadata[_token_id]
+
 @internal
 def _paloma_check():
     assert msg.sender == self.compass, "Not compass"
     assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
+
+@internal
+def _fund_receiver_check():
+    assert msg.sender == self.funds_receiver, "Not fund receiver"
 
 @external
 def update_compass(_new_compass: address):
@@ -210,6 +210,73 @@ def set_paloma():
     _paloma: bytes32 = convert(slice(msg.data, 4, 32), bytes32)
     self.paloma = _paloma
     log SetPaloma(_paloma)
+
+@external
+def create_promo_code(_promo_code: String, _recipient: address):
+    self._paloma_check()
+
+    assert _recipient != ZERO_ADDRESS, "Recipient address cannot be zero"
+    self.promo_codes[_promo_code] = PromoCode(_recipient, True, 0)
+    log PromoCodeCreated(_promo_code, _recipient)
+    
+@external
+def remove_promo_code(_promo_code: String):
+    self._paloma_check()
+
+    assert self.promo_codes[_promo_code].recipient != ZERO_ADDRESS, "Promo code does not exist"
+    self.promo_codes[_promo_code].active = False  # 'active' is set to False
+    log PromoCodeRemoved(_promo_code)
+
+@external
+def set_claimable(_new_claimable: bool):
+    self._paloma_check()
+
+    self.claimable = _new_claimable
+    log ClaimableChanged(msg.sender, _new_claimable)
+
+@external
+def set_funds_receiver(_new_funds_receiver: address):
+    self._fund_receiver_check()
+
+    assert _new_funds_receiver != ZERO_ADDRESS, "New fundsReceiver cannot be the zero address"
+    self.funds_receiver = _new_funds_receiver
+    log FundsReceiverChanged(msg.sender, _new_funds_receiver)
+
+@external
+def set_referral_percentages(
+    _new_referral_discount_percentage: uint256,
+    _new_referral_reward_percentage: uint256,
+):
+    self._paloma_check()
+
+    assert _new_referral_discount_percentage <= 99, "Referral discount percentage cannot be greater than 99"
+    assert _new_referral_reward_percentage <= 99, "Referral reward percentage cannot be greater than 99"
+    self.referral_discount_percentage = _new_referral_discount_percentage
+    self.referral_reward_percentage = _new_referral_reward_percentage
+    log ReferralRewardPercentagesChanged(
+        _new_referral_discount_percentage,
+        _new_referral_reward_percentage,
+    )
+
+@external
+def claim_referral_reward():
+    assert self.claimable, "Claiming of referral rewards is currently disabled"
+    _reward: uint256 = self.referral_reward[msg.sender]
+    assert reward > 0, "No referral reward to claim"
+    self.referral_reward[msg.sender] = 0
+    assert ERC20(REWARD_TOKEN).transfer(msg.sender, _reward, default_return_value=True), "Claim Failed"
+    log RewardClaimed(msg.sender, _reward)
+
+@external
+def update_whitelist_amounts(_to_whitelist: address, _amount: uint256):
+    self._paloma_check()
+    self.whitelist_amounts[_to_whitelist] = _amount
+    log WhitelistAmountUpdatedByAdmin(_to_whitelist, _amount)
+
+@external
+@view
+def get_promo_code(_promo_code: String) -> PromoCode:
+    return self.promo_codes[_promo_code]
 
 # Minting
 @internal
@@ -239,8 +306,8 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String, _average_cost: 
     _final_price: uint256 = _amount * _average_cost
     if _promo_code.recipient != ZERO_ADDRESS:
         _referral_reward = _final_price * self.referral_reward_percentage / 100
-        self.referral_rewards[_promo_code.recipient] += referral_reward
-        self.promo_codes[_promo_code_id].received_lifetime += referral_reward
+        self.referral_rewards[_promo_code.recipient] += _referral_reward
+        self.promo_codes[_promo_code_id].received_lifetime += _referral_reward
         log ReferralReward(_to, _promo_code.recipient, _referral_reward)
 
 @external
@@ -312,6 +379,14 @@ def balance_of(_owner: address) -> uint256:
     return _balance
 
 @external
+def withdraw_funds(_amount: uint256):
+    self._fund_receiver_check()
+    _funds_receiver: address = self.funds_receiver
+    assert ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "fund withdraw Failed"
+
+    log FundsWithdrawn(msg.sender, _amount)
+
+@internal
 def transfer_from(_from: address, _to: address, _token_id: uint256):
     # assert self.token_owner[_token_id] == _from, "Not the owner"
     # assert _to != ZERO_ADDRESS, "Cannot transfer to zero address"
