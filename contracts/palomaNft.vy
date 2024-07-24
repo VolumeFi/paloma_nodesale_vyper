@@ -50,10 +50,6 @@ struct ExactOutputSingleParams:
     amountInMaximum: uint256
     sqrtPriceLimitX96: uint160
 
-struct Tier:
-    price: uint256
-    quantity: uint256
-
 struct PromoCode:
     recipient: address
     active: bool
@@ -121,7 +117,6 @@ paid_amount: public(HashMap[address, uint256])
 funds_receiver: public(address)
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
-max_supply: public(uint256)
 claimable: public(bool)
 promo_codes: HashMap[String[10], PromoCode]
 mint_timestamps: HashMap[uint256, uint256]
