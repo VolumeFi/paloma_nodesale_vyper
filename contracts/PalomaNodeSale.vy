@@ -39,13 +39,6 @@ struct PromoCode:
     active: bool
     received_lifetime: uint256
 
-event PromoCodeCreated:
-    promo_code: String[10]
-    recipient: address
-
-event PromoCodeRemoved:
-    promo_code: String[10]
-
 event RewardClaimed:
     claimer: address
     amount: uint256
@@ -97,7 +90,6 @@ funds_receiver: public(address)
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 claimable: public(bool)
-promo_codes: HashMap[String[10], PromoCode]
 mint_timestamps: HashMap[uint256, uint256]
 referral_rewards: HashMap[address, uint256]
 
@@ -146,22 +138,6 @@ def set_paloma():
     log SetPaloma(_paloma)
 
 @external
-def create_promo_code(_promo_code: String[10], _recipient: address):
-    self._paloma_check()
-
-    assert _recipient != empty(address), "Recipient address cannot be zero"
-    self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True, received_lifetime=0)
-    log PromoCodeCreated(_promo_code, _recipient)
-    
-@external
-def remove_promo_code(_promo_code: String[10]):
-    self._paloma_check()
-
-    assert self.promo_codes[_promo_code].recipient != empty(address), "Promo code does not exist"
-    self.promo_codes[_promo_code].active = False  # 'active' is set to False
-    log PromoCodeRemoved(_promo_code)
-
-@external
 def set_claimable(_new_claimable: bool):
     self._paloma_check()
 
@@ -200,11 +176,6 @@ def claim_referral_reward():
     self.referral_rewards[msg.sender] = 0
     assert extcall ERC20(REWARD_TOKEN).transfer(msg.sender, _rewards, default_return_value=True), "Claim Failed"
     log RewardClaimed(msg.sender, _rewards)
-
-@external
-@view
-def get_promo_code(_promo_code: String[10]) -> PromoCode:
-    return self.promo_codes[_promo_code]
 
 @external
 def refund(_to: address, _amount: uint256):
