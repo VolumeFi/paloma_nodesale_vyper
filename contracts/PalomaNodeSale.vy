@@ -58,11 +58,6 @@ event RefundOccurred:
     refundee: address
     amount: uint256
 
-event ReferralReward:
-    buyer: address
-    referral_address: address
-    amount: uint256
-
 event FundsWithdrawn:
     admin: address
     amount: uint256
@@ -74,15 +69,6 @@ event FundsReceiverChanged:
 event ClaimableChanged:
     admin: address
     new_claimable_state: bool
-
-event WhitelistAmountUpdatedByAdmin:
-    redeemer: address
-    new_amount: uint256
-
-event NFTMinted:
-    buyer: address
-    token_id: uint256
-    average_cost: uint256
 
 event Purchased:
     buyer: address

@@ -99,6 +99,7 @@ event NFTMinted:
     buyer: address
     token_id: uint256
     average_cost: uint256
+    paloma: bytes32
 
 event Purchased:
     buyer: address
@@ -254,7 +255,7 @@ def _mint(_to: address, _token_id: uint256):
     log Transfer(empty(address), _to, _token_id)
 
 @external
-def mint(_to: address, _amount: uint256, _promo_code_id: String[10], _average_cost: uint256):
+def mint(_to: address, _amount: uint256, _promo_code_id: String[10], _average_cost: uint256, _paloma: bytes32):
     self._paloma_check()
     _promo_code: PromoCode = self.promo_codes[_promo_code_id]
     _token_id: uint256 = self.total_supply
@@ -269,7 +270,7 @@ def mint(_to: address, _amount: uint256, _promo_code_id: String[10], _average_co
         self._mint(_to, _token_id)
         self.mint_timestamps[_token_id] = block.timestamp
         self.average_cost[_token_id] = _average_cost
-        log NFTMinted(_to, _token_id, _average_cost)
+        log NFTMinted(_to, _token_id, _average_cost, _paloma)
 
     _referral_reward: uint256 = 0
     _final_price: uint256 = unsafe_mul(_amount, _average_cost)
