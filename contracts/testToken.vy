@@ -1,3 +1,7 @@
+#pragma version 0.4.0
+#pragma optimize gas
+#pragma evm-version cancun
+
 # Author: Sören Steiger, github.com/ssteiger
 # License: MIT
 
@@ -58,8 +62,6 @@ totalSupply: public(uint256)
 balanceOf: public(HashMap[address, uint256])
 approvedFunds: HashMap[address, HashMap[address, uint256]]
 
-
-@external
 @deploy
 def __init__(_name: String[64], _symbol: String[32], _decimals: uint256, _totalSupply: uint256):
     self.name = _name
