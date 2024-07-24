@@ -100,6 +100,14 @@ event NFTMinted:
     token_id: uint256
     average_cost: uint256
 
+event Purchased:
+    buyer: address
+    token_in: address
+    usd_amount: uint256
+    node_count: uint256
+    average_cost: uint256
+    promo_code: String[10]
+
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
@@ -279,9 +287,10 @@ def refund(_to: address, _amount: uint256):
     log RefundOccurred(_to, _amount)
 
 @external
-def pay_for_token(_token_in: address, _amount_in: uint256):
+def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _average_cost: uint256, _promo_code_id: String[10]):
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in), "approve Failed"
 
+    _usd_amount: uint256 = unsafe_mul(_node_count, _average_cost)
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = _token_in,
         tokenOut = REWARD_TOKEN,
@@ -289,23 +298,24 @@ def pay_for_token(_token_in: address, _amount_in: uint256):
         recipient = msg.sender,
         deadline = block.timestamp,
         amountIn = _amount_in,
-        amountOutMinimum = 50 * 10**6,  # 50 USDC # need to change
+        amountOutMinimum = _usd_amount,
         sqrtPriceLimitX96 = 0
     )
 
     _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
+    log Purchased(msg.sender, _token_in, _usd_amount, _node_count, _average_cost, _promo_code_id)
 
 @payable
 @external
-def pay_for_eth():
+def pay_for_eth(_node_count: uint256, _average_cost: uint256, _promo_code_id: String[10]):
     # Approve WETH9 for the swap router
     assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value), "appprove Failed"
     # Wrap ETH to WETH9
     extcall IWETH(WETH9).deposit(value=msg.value)
 
-    # Create the exact input single params
+    _usd_amount: uint256 = unsafe_mul(_node_count, _average_cost)
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = WETH9,
         tokenOut = REWARD_TOKEN,
@@ -313,7 +323,7 @@ def pay_for_eth():
         recipient = msg.sender,
         deadline = block.timestamp,
         amountIn = msg.value,
-        amountOutMinimum = 50 * 10**6,  # 50 USDC # need to change
+        amountOutMinimum = _usd_amount,
         sqrtPriceLimitX96 = 0
     )
 
@@ -321,6 +331,7 @@ def pay_for_eth():
     _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
+    log Purchased(msg.sender, empty(address), _usd_amount, _node_count, _average_cost, _promo_code_id)
 
 @external
 def withdraw_funds(_amount: uint256):
