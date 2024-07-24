@@ -91,7 +91,8 @@ event Purchased:
     node_count: uint256
     average_cost: uint256
     promo_code: String[10]
-    
+    paloma: bytes32
+
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
@@ -228,7 +229,7 @@ def refund(_to: address, _amount: uint256):
     log RefundOccurred(_to, _amount)
 
 @external
-def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _average_cost: uint256, _promo_code_id: String[10]):
+def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _average_cost: uint256, _promo_code_id: String[10], _paloma: bytes32):
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in), "approve Failed"
 
     _usd_amount: uint256 = unsafe_mul(_node_count, _average_cost)
@@ -246,11 +247,11 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
     _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
-    log Purchased(msg.sender, _token_in, _usd_amount, _node_count, _average_cost, _promo_code_id)
+    log Purchased(msg.sender, _token_in, _usd_amount, _node_count, _average_cost, _promo_code_id, _paloma)
 
 @payable
 @external
-def pay_for_eth(_node_count: uint256, _average_cost: uint256, _promo_code_id: String[10]):
+def pay_for_eth(_node_count: uint256, _average_cost: uint256, _promo_code_id: String[10], _paloma: bytes32):
     # Approve WETH9 for the swap router
     assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value), "appprove Failed"
     # Wrap ETH to WETH9
@@ -272,7 +273,7 @@ def pay_for_eth(_node_count: uint256, _average_cost: uint256, _promo_code_id: St
     _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
-    log Purchased(msg.sender, empty(address), _usd_amount, _node_count, _average_cost, _promo_code_id)
+    log Purchased(msg.sender, empty(address), _usd_amount, _node_count, _average_cost, _promo_code_id, _paloma)
 
 @external
 def withdraw_funds(_amount: uint256):
