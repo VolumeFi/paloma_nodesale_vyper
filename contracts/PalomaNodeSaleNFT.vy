@@ -66,6 +66,10 @@ event ReferralRewardPercentagesChanged:
     referral_discount_percentage: uint256
     referral_reward_percentage: uint256
 
+event RefundRequested:
+    refundee: indexed(address)
+    amount: uint256
+
 event RefundOccurred:
     refundee: indexed(address)
     amount: uint256
@@ -119,7 +123,7 @@ event PricingTierSetOrAdded:
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
-MAX_MINTABLE_AMOUNT: constant(uint256) = 50
+MAX_MINTABLE_AMOUNT: constant(uint256) = 1000
 MAX_PRICING_TIERS_LEN: constant(uint256) = 40
 GRAINS_PER_NODE: constant(uint256) = 50000
 
@@ -332,16 +336,32 @@ def _mint(_to: address, _token_id: uint256):
     log Transfer(empty(address), _to, _token_id)
 
 @external
-def mint(_to: address, _amount: uint256, _promo_code: String[10], _paloma: bytes32):
+def mint(_to: address, _amount: uint256, _promo_code: String[10], _paloma: bytes32, _paid_amount: uint256):
     self._paloma_check()
+
     _promo_codes: PromoCode = self.promo_codes[_promo_code]
     _token_id: uint256 = self.total_supply
-    assert _token_id + _amount <= self.max_supply, "Exceeds max supply"
-    assert _amount > 0, "Amount must be greater than 0"
-    assert _promo_codes.recipient != _to, "Referral address cannot be the senders address"
-    assert (_promo_codes.recipient != empty(address) and _promo_codes.active) or _promo_codes.recipient == empty(address), "Invalid or inactive promo code"
+    if _token_id + _amount > self.max_supply:
+        log RefundRequested(_to, _paid_amount)
+        raise "Exceeds max supply"
+    if _amount <= 0:
+        log RefundRequested(_to, _paid_amount)
+        raise "Amount must be greater than 0"
+    if _to == empty(address):
+        log RefundRequested(_to, _paid_amount)
+        raise "Invalid destination address"
+    if _promo_codes.recipient == _to:
+        log RefundRequested(_to, _paid_amount)
+        raise "Referral address cannot be the senders address"
+    if _promo_codes.recipient == empty(address) and _promo_codes.active:
+        log RefundRequested(_to, _paid_amount)
+        raise "Invalid promo code"
 
     _final_price: uint256 = self._price(_amount, _promo_code)
+    if _final_price != _paid_amount:
+        log RefundRequested(_to, _paid_amount)
+        raise "Invalid paid amount"
+
     _average_cost: uint256 = unsafe_div(_final_price, _amount)
 
     for i: uint256 in range(MAX_MINTABLE_AMOUNT):
