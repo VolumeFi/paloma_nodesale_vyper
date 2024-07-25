@@ -96,6 +96,12 @@ event NFTMinted:
     average_cost: uint256
     paloma: bytes32
 
+event NodeSold:
+    buyer: address
+    paloma: bytes32
+    node_count: uint256
+    grain_amount: uint256 
+
 event Purchased:
     buyer: indexed(address)
     token_in: address
@@ -115,6 +121,7 @@ SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
 MAX_MINTABLE_AMOUNT: constant(uint256) = 50
 MAX_PRICING_TIERS_LEN: constant(uint256) = 40
+GRAINS_PER_NODE: constant(uint256) = 50000
 
 # Storage
 ownerOf: public(HashMap[uint256, address])
@@ -346,6 +353,9 @@ def mint(_to: address, _amount: uint256, _promo_code: String[10], _paloma: bytes
         self.average_cost[_token_id] = _average_cost
         log NFTMinted(_to, _token_id, _average_cost, _paloma)
 
+    _grain_amount: uint256 = unsafe_mul(_amount, GRAINS_PER_NODE)
+    log NodeSold(_to, _paloma, _amount, _grain_amount)
+
 @external
 def redeem_from_whitelist(_paloma: bytes32):
     _whitelist_amounts: uint256 = self.whitelist_amounts[msg.sender]
@@ -366,6 +376,9 @@ def redeem_from_whitelist(_paloma: bytes32):
         self.mint_timestamps[_token_id] = block.timestamp
         log NFTMinted(msg.sender, _token_id, 0, _paloma)
     
+    _grain_amount: uint256 = unsafe_mul(_to_mint, GRAINS_PER_NODE)
+    log NodeSold(msg.sender, _paloma, _to_mint, _grain_amount)
+
     _new_amount: uint256 = unsafe_sub(_whitelist_amounts, _to_mint)
     self.whitelist_amounts[msg.sender] = _new_amount
     log WhitelistAmountRedeemed(msg.sender, _new_amount)

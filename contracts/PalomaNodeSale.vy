@@ -63,7 +63,6 @@ event Purchased:
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
-MAX_MINTABLE_AMOUNT: constant(uint256) = 40
 
 # Storage
 paloma: public(bytes32)
