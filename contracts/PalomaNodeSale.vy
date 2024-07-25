@@ -59,10 +59,6 @@ event FundsReceiverChanged:
     admin: address
     new_funds_receiver: address
 
-event ClaimableChanged:
-    admin: address
-    new_claimable_state: bool
-
 event Purchased:
     buyer: address
     token_in: address
@@ -87,9 +83,6 @@ paloma: public(bytes32)
 compass: public(address)
 paid_amount: public(HashMap[address, uint256])
 funds_receiver: public(address)
-referral_discount_percentage: public(uint256)
-referral_reward_percentage: public(uint256)
-claimable: public(bool)
 mint_timestamps: HashMap[uint256, uint256]
 referral_rewards: HashMap[address, uint256]
 
@@ -138,13 +131,6 @@ def set_paloma():
     log SetPaloma(_paloma)
 
 @external
-def set_claimable(_new_claimable: bool):
-    self._paloma_check()
-
-    self.claimable = _new_claimable
-    log ClaimableChanged(msg.sender, _new_claimable)
-
-@external
 def set_funds_receiver(_new_funds_receiver: address):
     self._fund_receiver_check()
 
@@ -153,24 +139,7 @@ def set_funds_receiver(_new_funds_receiver: address):
     log FundsReceiverChanged(msg.sender, _new_funds_receiver)
 
 @external
-def set_referral_percentages(
-    _new_referral_discount_percentage: uint256,
-    _new_referral_reward_percentage: uint256,
-):
-    self._paloma_check()
-
-    assert _new_referral_discount_percentage <= 9900, "Referral discount percentage cannot be greater than 99"
-    assert _new_referral_reward_percentage <= 9900, "Referral reward percentage cannot be greater than 99"
-    self.referral_discount_percentage = _new_referral_discount_percentage
-    self.referral_reward_percentage = _new_referral_reward_percentage
-    log ReferralRewardPercentagesChanged(
-        _new_referral_discount_percentage,
-        _new_referral_reward_percentage,
-    )
-
-@external
 def claim_referral_reward():
-    assert self.claimable, "Claim is not available"
     _rewards: uint256 = self.referral_rewards[msg.sender]
     assert _rewards > 0, "No referral reward to claim"
     self.referral_rewards[msg.sender] = 0
@@ -201,7 +170,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
         sqrtPriceLimitX96 = 0
     )
 
-    _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
+    _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
     log Purchased(msg.sender, _token_in, _usd_amount, _node_count, _average_cost, _promo_code_id, _paloma)
@@ -227,7 +196,7 @@ def pay_for_eth(_node_count: uint256, _average_cost: uint256, _promo_code_id: St
     )
 
     # Execute the swap
-    _swapped_amount: uint256 = staticcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
+    _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params, value=msg.value)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
     log Purchased(msg.sender, empty(address), _usd_amount, _node_count, _average_cost, _promo_code_id, _paloma)
