@@ -357,8 +357,9 @@ def mint(_to: address, _amount: uint256, _promo_code: String[10], _paloma: bytes
     log NodeSold(_to, _paloma, _amount, _grain_amount)
 
 @external
-def redeem_from_whitelist(_paloma: bytes32):
-    _whitelist_amounts: uint256 = self.whitelist_amounts[msg.sender]
+def redeem_from_whitelist(_to: address, _paloma: bytes32):
+    self._paloma_check()
+    _whitelist_amounts: uint256 = self.whitelist_amounts[_to]
     assert _whitelist_amounts > 0, "Invalid whitelist amount"
     
     _token_id: uint256 = self.total_supply
@@ -372,16 +373,16 @@ def redeem_from_whitelist(_paloma: bytes32):
         if i >= _to_mint:
             break
         _token_id = unsafe_add(_token_id, 1)
-        self._mint(msg.sender, _token_id)
+        self._mint(_to, _token_id)
         self.mint_timestamps[_token_id] = block.timestamp
-        log NFTMinted(msg.sender, _token_id, 0, _paloma)
+        log NFTMinted(_to, _token_id, 0, _paloma)
     
     _grain_amount: uint256 = unsafe_mul(_to_mint, GRAINS_PER_NODE)
-    log NodeSold(msg.sender, _paloma, _to_mint, _grain_amount)
+    log NodeSold(_to, _paloma, _to_mint, _grain_amount)
 
     _new_amount: uint256 = unsafe_sub(_whitelist_amounts, _to_mint)
-    self.whitelist_amounts[msg.sender] = _new_amount
-    log WhitelistAmountRedeemed(msg.sender, _new_amount)
+    self.whitelist_amounts[_to] = _new_amount
+    log WhitelistAmountRedeemed(_to, _new_amount)
 
 @external
 def add_referral_reward(_recipient: address, _final_price: uint256):
