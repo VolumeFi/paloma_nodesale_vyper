@@ -52,7 +52,6 @@ struct ExactOutputSingleParams:
 struct PromoCode:
     recipient: address
     active: bool
-    received_lifetime: uint256
 
 struct Tier:
     price: uint256
@@ -78,7 +77,6 @@ event RefundOccurred:
     amount: uint256
 
 event ReferralReward:
-    buyer: indexed(address)
     referral_address: indexed(address)
     amount: uint256
 
@@ -105,7 +103,7 @@ event NFTMinted:
     paloma: bytes32
 
 event Purchased:
-    buyer: address
+    buyer: indexed(address)
     token_in: address
     usd_amount: uint256
     node_count: uint256
@@ -139,11 +137,11 @@ referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 pricing_tiers: public(HashMap[uint256, Tier])
 pricing_tiers_len: public(uint256)
-promo_codes: HashMap[String[10], PromoCode]
+promo_codes: public(HashMap[String[10], PromoCode])
 mint_timestamps: public(HashMap[uint256, uint256])
-referral_rewards: HashMap[address, uint256]
 average_cost: public(HashMap[uint256, uint256])
-whitelist_amounts: HashMap[address, uint256]
+referral_rewards: public(HashMap[address, uint256])
+whitelist_amounts: public(HashMap[address, uint256])
 
 interface ISwapRouter02:
     def exactInputSingle(params: ExactInputSingleParams) -> uint256: payable
@@ -160,7 +158,6 @@ interface ERC20:
 # Constructor
 @deploy
 def __init__(_compass: address, _swap_router: address, _reward_token: address, _weth9: address):
-    self.total_supply = 0
     self.compass = _compass
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
@@ -194,7 +191,7 @@ def create_promo_code(_promo_code: String[10], _recipient: address):
     self._paloma_check()
 
     assert _recipient != empty(address), "Recipient address cannot be zero"
-    self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True, received_lifetime=0)
+    self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True)
     log PromoCodeCreated(_promo_code, _recipient)
     
 @external
@@ -204,11 +201,6 @@ def remove_promo_code(_promo_code: String[10]):
     assert self.promo_codes[_promo_code].recipient != empty(address), "Promo code does not exist"
     self.promo_codes[_promo_code].active = False  # 'active' is set to False
     log PromoCodeRemoved(_promo_code)
-
-@external
-@view
-def get_promo_code(_promo_code: String[10]) -> PromoCode:
-    return self.promo_codes[_promo_code]
 
 @external
 def set_funds_receiver(_new_funds_receiver: address):
@@ -246,6 +238,7 @@ def set_or_add_pricing_tier(
         _max_supply = unsafe_sub(_max_supply, self.pricing_tiers[_index].quantity)
         self.pricing_tiers[_index] = Tier(price=_price, quantity=_quantity)
     elif _index == _pricing_tiers_len:
+        self.pricing_tiers_len = unsafe_add(_pricing_tiers_len, 1)
         self.pricing_tiers[_index] = Tier(price=_price, quantity=_quantity)
     self.max_supply = unsafe_add(_max_supply, _quantity)
     log PricingTierSetOrAdded(_index, _price, _quantity)
@@ -364,27 +357,23 @@ def redeem_from_whitelist(_paloma: bytes32):
     log WhitelistAmountRedeemed(msg.sender, _new_amount)
 
 @external
-def add_referral_reward(_to: address, _amount: uint256, _promo_code: String[10]):
+def add_referral_reward(_recipient: address, _final_price: uint256):
     self._paloma_check()
-    assert _amount > 0, "Amount should be greater than 0"
-    assert _to != empty(address), "buyer address shouldnt be empty"
+    assert _recipient != empty(address), "buyer address shouldnt be empty"
 
-    _promo_codes: PromoCode = self.promo_codes[_promo_code]
     _referral_reward: uint256 = 0
-    _final_price: uint256 = self._price(_amount, _promo_code)
-    if _promo_codes.recipient != empty(address):
-        _referral_reward = unsafe_div(unsafe_mul(_final_price, self.referral_reward_percentage), 10000)
-        self.referral_rewards[_promo_codes.recipient] = unsafe_add(self.referral_rewards[_promo_codes.recipient], _referral_reward)
-        self.promo_codes[_promo_code].received_lifetime = unsafe_add(_promo_codes.received_lifetime, _referral_reward)
-        log ReferralReward(_to, _promo_codes.recipient, _referral_reward)
+    _referral_reward = unsafe_div(unsafe_mul(_final_price, self.referral_reward_percentage), 10000)
+    self.referral_rewards[_recipient] = unsafe_add(self.referral_rewards[_recipient], _referral_reward)
+    log ReferralReward(_recipient, _referral_reward)
 
 @external
 def refund(_to: address, _amount: uint256):
     self._paloma_check()
     assert _amount > 0, "Amount should be greater than 0"
-    assert self.paid_amount[_to] >= _amount, "No balance to refund"
+    _paid_amount: uint256 = self.paid_amount[_to]
+    assert _paid_amount >= _amount, "No balance to refund"
     assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
-    self.paid_amount[_to] = unsafe_sub(self.paid_amount[_to], _amount)
+    self.paid_amount[_to] = unsafe_sub(_paid_amount, _amount)
     log RefundOccurred(_to, _amount)
 
 @external
