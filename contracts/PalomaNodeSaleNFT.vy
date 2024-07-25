@@ -35,7 +35,6 @@ struct ExactInputSingleParams:
     tokenOut: address
     fee: uint24
     recipient: address
-    deadline: uint256
     amountIn: uint256
     amountOutMinimum: uint256
     sqrtPriceLimitX96: uint160
@@ -303,7 +302,7 @@ def _price(_amount: uint256, _promo_code: String[10]) -> uint256:
 @external
 @view
 def price(_amount: uint256, _promo_code: String[10]) -> uint256:
-    assert _amount > 0, "Amount should be bigger than zero"
+    assert _amount > 0, "Amount should be greater than zero"
 
     _total_cost: uint256 = self._price(_amount, _promo_code)
 
@@ -367,7 +366,7 @@ def redeem_from_whitelist(_paloma: bytes32):
 @external
 def add_referral_reward(_to: address, _amount: uint256, _promo_code: String[10]):
     self._paloma_check()
-    assert _amount > 0, "Amount must be greater than 0"
+    assert _amount > 0, "Amount should be greater than 0"
     assert _to != empty(address), "buyer address shouldnt be empty"
 
     _promo_codes: PromoCode = self.promo_codes[_promo_code]
@@ -382,58 +381,60 @@ def add_referral_reward(_to: address, _amount: uint256, _promo_code: String[10])
 @external
 def refund(_to: address, _amount: uint256):
     self._paloma_check()
-    assert _amount > 0, "Amount must be greater than 0"
+    assert _amount > 0, "Amount should be greater than 0"
     assert self.paid_amount[_to] >= _amount, "No balance to refund"
     assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
     self.paid_amount[_to] = unsafe_sub(self.paid_amount[_to], _amount)
     log RefundOccurred(_to, _amount)
 
 @external
-def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _average_cost: uint256, _promo_code_id: String[10], _paloma: bytes32):
+def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: String[10], _fee: uint24, _paloma: bytes32):
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in), "approve Failed"
+    assert _node_count > 0, "Node count should be greater than 0"
+    assert _total_cost > 0, "Total cost should be greater than 0"
 
-    _usd_amount: uint256 = unsafe_mul(_node_count, _average_cost)
+    _average_cost: uint256 = unsafe_div(_total_cost, _node_count)
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = _token_in,
         tokenOut = REWARD_TOKEN,
-        fee = 3000,
+        fee = _fee,
         recipient = self,
-        deadline = block.timestamp,
         amountIn = _amount_in,
-        amountOutMinimum = _usd_amount,
+        amountOutMinimum = _total_cost,
         sqrtPriceLimitX96 = 0
     )
 
     _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
-    log Purchased(msg.sender, _token_in, _usd_amount, _node_count, _average_cost, _promo_code_id, _paloma)
+    log Purchased(msg.sender, _token_in, _total_cost, _node_count, _average_cost, _promo_code, _paloma)
 
 @payable
 @external
-def pay_for_eth(_node_count: uint256, _average_cost: uint256, _promo_code_id: String[10], _paloma: bytes32):
-    # Approve WETH9 for the swap router
-    assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value), "appprove Failed"
-    # Wrap ETH to WETH9
-    extcall IWETH(WETH9).deposit(value=msg.value)
+def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: String[10], _fee: uint24, _paloma: bytes32):
+    assert _node_count > 0, "Node count should be greater than 0"
+    assert _total_cost > 0, "Total cost should be greater than 0"
+    # # Approve WETH9 for the swap router
+    # assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value), "appprove Failed"
+    # # Wrap ETH to WETH9
+    # extcall IWETH(WETH9).deposit(value=msg.value)
 
-    _usd_amount: uint256 = unsafe_mul(_node_count, _average_cost)
+    _average_cost: uint256 = unsafe_div(_total_cost, _node_count)
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = WETH9,
         tokenOut = REWARD_TOKEN,
-        fee = 3000,
+        fee = _fee,
         recipient = self,
-        deadline = block.timestamp,
         amountIn = msg.value,
-        amountOutMinimum = _usd_amount,
+        amountOutMinimum = _average_cost,
         sqrtPriceLimitX96 = 0
     )
 
     # Execute the swap
-    _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
+    _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params, value=msg.value)
 
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
-    log Purchased(msg.sender, empty(address), _usd_amount, _node_count, _average_cost, _promo_code_id, _paloma)
+    log Purchased(msg.sender, empty(address), _total_cost, _node_count, _average_cost, _promo_code, _paloma)
 
 @external
 def withdraw_funds(_amount: uint256):
