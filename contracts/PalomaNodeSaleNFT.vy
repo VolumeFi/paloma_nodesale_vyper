@@ -436,9 +436,9 @@ def add_referral_reward(_recipient: address, _final_cost: uint256):
         _referral_reward = unsafe_div(unsafe_mul(_final_cost, self.referral_reward_percentage), 10000)
         self.referral_rewards[_recipient] = self.referral_rewards[_recipient] + _referral_reward
         self.referral_rewards_sum = self.referral_rewards_sum + _referral_reward
-        log ReferralReward(_recipient, _referral_reward)
     
     self.withdrawable_funds = self.withdrawable_funds + _final_cost - _referral_reward
+    log ReferralReward(_recipient, _referral_reward)
 
 @external
 def refund(_to: address, _amount: uint256):
