@@ -294,7 +294,6 @@ def claim_referral_reward():
     _rewards: uint256 = self.referral_rewards[msg.sender]
     _rewards_sum: uint256 = self.referral_rewards_sum
     assert _rewards > 0, "No reward to claim"
-    assert _rewards_sum >= _rewards, "No reward sum to claim"
     self.referral_rewards[msg.sender] = 0
     self.referral_rewards_sum = unsafe_sub(_rewards_sum, _rewards)
     assert extcall ERC20(REWARD_TOKEN).transfer(msg.sender, _rewards, default_return_value=True), "Claim Failed"

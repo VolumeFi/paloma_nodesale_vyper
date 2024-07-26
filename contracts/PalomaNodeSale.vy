@@ -208,7 +208,7 @@ def refund(_to: address, _amount: uint256):
     assert _amount > 0, "Amount cant be zero"
     _paid_amount: uint256 = self.paid_amount[_to]
     assert _paid_amount >= _amount, "No balance to refund"
-    assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "Refund failed"
     self.paid_amount[_to] = unsafe_sub(_paid_amount, _amount)
     log RefundOccurred(_to, _amount)
 
@@ -216,7 +216,7 @@ def refund(_to: address, _amount: uint256):
 def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
     assert block.timestamp >= self.start_timestamp
     assert block.timestamp < self.end_timestamp
-    assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "approve Failed"
+    assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "Approve failed"
     assert _node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
 
