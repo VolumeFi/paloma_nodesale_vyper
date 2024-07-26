@@ -66,6 +66,10 @@ event ReferralRewardPercentagesChanged:
     referral_discount_percentage: uint256
     referral_reward_percentage: uint256
 
+event StartEndTimestampChanged:
+    new_start_timestamp: uint256
+    new_end_timestamp: uint256
+
 event RefundRequested:
     refundee: indexed(address)
     amount: uint256
@@ -180,6 +184,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log UpdateCompass(empty(address), _compass)
     log UpdateAdmin(empty(address), _admin)
     log FundsReceiverChanged(empty(address), _fund_receiver)
+    log StartEndTimestampChanged(_start_timestamp, _end_timestamp)
 
 @internal
 def _paloma_check():
@@ -252,6 +257,18 @@ def set_referral_percentages(
         _new_referral_discount_percentage,
         _new_referral_reward_percentage,
     )
+
+@external
+def set_start_end_timestamp(
+    _new_start_timestamp: uint256,
+    _new_end_timestamp: uint256,
+):
+    self._admin_check()
+    assert _new_start_timestamp > 0, "Invalid start date"
+    assert _new_end_timestamp > 0, "Invalid end date"
+    self.start_timestamp = _new_start_timestamp
+    self.end_timestamp = _new_end_timestamp
+    log StartEndTimestampChanged(_new_start_timestamp, _new_end_timestamp)
 
 @external
 def set_or_add_pricing_tier(
@@ -436,6 +453,8 @@ def refund(_to: address, _amount: uint256):
 
 @external
 def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
+    assert block.timestamp >= self.start_timestamp
+    assert block.timestamp < self.end_timestamp
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "Approve failed"
     assert _node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
@@ -459,6 +478,8 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
 @payable
 @external
 def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
+    assert block.timestamp >= self.start_timestamp
+    assert block.timestamp < self.end_timestamp
     assert _node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
     # # Approve WETH9 for the swap router
