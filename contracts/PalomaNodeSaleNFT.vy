@@ -165,14 +165,16 @@ interface ERC20:
 
 # Constructor
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address):
     self.compass = _compass
     self.admin = _admin
+    self.funds_receiver = _fund_receiver
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
     WETH9 = staticcall ISwapRouter02(_swap_router).WETH9()
     log UpdateCompass(empty(address), _compass)
     log UpdateAdmin(empty(address), _admin)
+    log FundsReceiverChanged(empty(address), _fund_receiver)
 
 @internal
 def _paloma_check():
@@ -210,7 +212,7 @@ def set_paloma():
 def create_promo_code(_promo_code: bytes32, _recipient: address):
     self._admin_check()
 
-    assert _recipient != empty(address), "Recipient address cannot be zero"
+    assert _recipient != empty(address), "Recipient cannot be zero"
     self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True)
     log PromoCodeCreated(_promo_code, _recipient)
     
@@ -226,7 +228,7 @@ def remove_promo_code(_promo_code: bytes32):
 def set_funds_receiver(_new_funds_receiver: address):
     self._fund_receiver_check()
 
-    assert _new_funds_receiver != empty(address), "New fundsReceiver cannot be the zero address"
+    assert _new_funds_receiver != empty(address), "FundsReceiver cannot be zero"
     self.funds_receiver = _new_funds_receiver
     log FundsReceiverChanged(msg.sender, _new_funds_receiver)
 
@@ -237,8 +239,8 @@ def set_referral_percentages(
 ):
     self._admin_check()
 
-    assert _new_referral_discount_percentage <= 9900, "Referral discount percentage cannot be greater than 99"
-    assert _new_referral_reward_percentage <= 9900, "Referral reward percentage cannot be greater than 99"
+    assert _new_referral_discount_percentage <= 9900, "Discount p exceed"
+    assert _new_referral_reward_percentage <= 9900, "Reward p exceed"
     self.referral_discount_percentage = _new_referral_discount_percentage
     self.referral_reward_percentage = _new_referral_reward_percentage
     log ReferralRewardPercentagesChanged(
@@ -269,8 +271,8 @@ def set_or_add_pricing_tier(
 def claim_referral_reward():
     _rewards: uint256 = self.referral_rewards[msg.sender]
     _rewards_sum: uint256 = self.referral_rewards_sum
-    assert _rewards > 0, "No referral reward to claim"
-    assert _rewards_sum >= _rewards, "No referral reward sum to claim"
+    assert _rewards > 0, "No reward to claim"
+    assert _rewards_sum >= _rewards, "No reward sum to claim"
     self.referral_rewards[msg.sender] = 0
     self.referral_rewards_sum = unsafe_sub(_rewards_sum, _rewards)
     assert extcall ERC20(REWARD_TOKEN).transfer(msg.sender, _rewards, default_return_value=True), "Claim Failed"
@@ -310,7 +312,7 @@ def _price(_amount: uint256, _promo_code: bytes32) -> uint256:
             _remaining = unsafe_sub(_remaining, _available_in_this_tier)
             _total_supply = unsafe_add(_total_supply, _available_in_this_tier)
     
-    assert _remaining == 0, "Not enough licenses available for sale"
+    assert _remaining == 0, "Not enough licenses"
 
     if (self.promo_codes[_promo_code].active):
         _total_cost = unsafe_div(unsafe_mul(_total_cost, unsafe_sub(10000, self.referral_discount_percentage)), 10000)
@@ -320,7 +322,7 @@ def _price(_amount: uint256, _promo_code: bytes32) -> uint256:
 @external
 @view
 def price(_amount: uint256, _promo_code: bytes32) -> uint256:
-    assert _amount > 0, "Amount should be greater than zero"
+    assert _amount > 0, "Amount cant be zero"
 
     _total_cost: uint256 = self._price(_amount, _promo_code)
 
@@ -343,24 +345,24 @@ def mint(_to: address, _amount: uint256, _promo_code: bytes32, _paloma: bytes32,
     _token_id: uint256 = self.total_supply
     if _token_id + _amount > self.max_supply:
         log RefundRequested(_to, _paid_amount)
-        raise "Exceeds max supply"
+        return
     if _amount <= 0:
         log RefundRequested(_to, _paid_amount)
-        raise "Amount must be greater than 0"
+        return
     if _to == empty(address):
         log RefundRequested(_to, _paid_amount)
-        raise "Invalid destination address"
+        return
     if _promo_codes.recipient == _to:
         log RefundRequested(_to, _paid_amount)
-        raise "Referral address cannot be the senders address"
+        return
     if _promo_codes.recipient == empty(address) and _promo_codes.active:
         log RefundRequested(_to, _paid_amount)
-        raise "Invalid promo code"
+        return
 
     _final_price: uint256 = self._price(_amount, _promo_code)
     if _final_price != _paid_amount:
         log RefundRequested(_to, _paid_amount)
-        raise "Invalid paid amount"
+        return
 
     _average_cost: uint256 = unsafe_div(_final_price, _amount)
 
@@ -407,29 +409,29 @@ def redeem_from_whitelist(_to: address, _paloma: bytes32):
 @external
 def add_referral_reward(_recipient: address, _final_price: uint256):
     self._paloma_check()
-    assert _recipient != empty(address), "buyer address shouldnt be empty"
+    assert _recipient != empty(address), "Invalid buyer address"
 
     _referral_reward: uint256 = 0
     _referral_reward = unsafe_div(unsafe_mul(_final_price, self.referral_reward_percentage), 10000)
-    self.referral_rewards[_recipient] = unsafe_add(self.referral_rewards[_recipient], _referral_reward)
-    self.referral_rewards_sum = unsafe_add(self.referral_rewards_sum, _referral_reward)
+    self.referral_rewards[_recipient] = self.referral_rewards[_recipient] + _referral_reward
+    self.referral_rewards_sum = self.referral_rewards_sum + _referral_reward
     log ReferralReward(_recipient, _referral_reward)
 
 @external
 def refund(_to: address, _amount: uint256):
     self._paloma_check()
-    assert _amount > 0, "Amount should be greater than 0"
+    assert _amount > 0, "Amount cant be zero"
     _paid_amount: uint256 = self.paid_amount[_to]
     assert _paid_amount >= _amount, "No balance to refund"
-    assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "refund Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(_to, _amount, default_return_value=True), "Refund failed"
     self.paid_amount[_to] = unsafe_sub(_paid_amount, _amount)
     log RefundOccurred(_to, _amount)
 
 @external
 def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
-    assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "approve Failed"
-    assert _node_count > 0, "Node count should be greater than 0"
-    assert _total_cost > 0, "Total cost should be greater than 0"
+    assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "Approve failed"
+    assert _node_count > 0, "Invalid node count"
+    assert _total_cost > 0, "Invalid total cost"
 
     _average_cost: uint256 = unsafe_div(_total_cost, _node_count)
     _params: ExactInputSingleParams = ExactInputSingleParams(
@@ -450,8 +452,8 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
 @payable
 @external
 def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
-    assert _node_count > 0, "Node count should be greater than 0"
-    assert _total_cost > 0, "Total cost should be greater than 0"
+    assert _node_count > 0, "Invalid node count"
+    assert _total_cost > 0, "Invalid total cost"
     # # Approve WETH9 for the swap router
     # assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value), "appprove Failed"
     # # Wrap ETH to WETH9
@@ -482,7 +484,7 @@ def withdraw_funds():
     _referral_rewards_sum: uint256 = self.referral_rewards_sum
     assert _balance >= _referral_rewards_sum, "Not enough balance"
     _amount: uint256 = unsafe_sub(_balance, _referral_rewards_sum)
-    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "fund withdraw Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "Fund withdraw Failed"
 
     log FundsWithdrawn(msg.sender, _amount)
 
