@@ -57,7 +57,7 @@ event Purchased:
     usd_amount: uint256
     node_count: uint256
     average_cost: uint256
-    promo_code: String[10]
+    promo_code: bytes32
     paloma: bytes32
 
 REWARD_TOKEN: public(immutable(address))
@@ -188,7 +188,7 @@ def refund(_to: address, _amount: uint256):
     log RefundOccurred(_to, _amount)
 
 @external
-def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: String[10], _fee: uint24, _paloma: bytes32):
+def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "approve Failed"
     assert _node_count > 0, "Node count should be greater than 0"
     assert _total_cost > 0, "Total cost should be greater than 0"
@@ -211,7 +211,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
 
 @payable
 @external
-def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: String[10], _fee: uint24, _paloma: bytes32):
+def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
     assert _node_count > 0, "Node count should be greater than 0"
     assert _total_cost > 0, "Total cost should be greater than 0"
     # # Approve WETH9 for the swap router

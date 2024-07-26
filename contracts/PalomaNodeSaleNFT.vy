@@ -52,11 +52,11 @@ struct Tier:
     quantity: uint256
 
 event PromoCodeCreated:
-    promo_code: String[10]
+    promo_code: bytes32
     recipient: address
 
 event PromoCodeRemoved:
-    promo_code: String[10]
+    promo_code: bytes32
 
 event RewardClaimed:
     claimer: indexed(address)
@@ -112,7 +112,7 @@ event Purchased:
     usd_amount: uint256
     node_count: uint256
     average_cost: uint256
-    promo_code: String[10]
+    promo_code: bytes32
     paloma: bytes32
 
 event PricingTierSetOrAdded:
@@ -143,7 +143,7 @@ referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 pricing_tiers: public(HashMap[uint256, Tier])
 pricing_tiers_len: public(uint256)
-promo_codes: public(HashMap[String[10], PromoCode])
+promo_codes: public(HashMap[bytes32, PromoCode])
 mint_timestamps: public(HashMap[uint256, uint256])
 average_cost: public(HashMap[uint256, uint256])
 referral_rewards: public(HashMap[address, uint256])
@@ -207,7 +207,7 @@ def set_paloma():
     log SetPaloma(_paloma)
 
 @external
-def create_promo_code(_promo_code: String[10], _recipient: address):
+def create_promo_code(_promo_code: bytes32, _recipient: address):
     self._admin_check()
 
     assert _recipient != empty(address), "Recipient address cannot be zero"
@@ -215,7 +215,7 @@ def create_promo_code(_promo_code: String[10], _recipient: address):
     log PromoCodeCreated(_promo_code, _recipient)
     
 @external
-def remove_promo_code(_promo_code: String[10]):
+def remove_promo_code(_promo_code: bytes32):
     self._admin_check()
 
     assert self.promo_codes[_promo_code].recipient != empty(address), "Promo code does not exist"
@@ -284,7 +284,7 @@ def update_whitelist_amounts(_to_whitelist: address, _amount: uint256):
 
 @internal
 @view
-def _price(_amount: uint256, _promo_code: String[10]) -> uint256:
+def _price(_amount: uint256, _promo_code: bytes32) -> uint256:
     _total_supply: uint256 = self.total_supply
     _total_cost: uint256 = 0
     _remaining: uint256 = _amount
@@ -319,7 +319,7 @@ def _price(_amount: uint256, _promo_code: String[10]) -> uint256:
 
 @external
 @view
-def price(_amount: uint256, _promo_code: String[10]) -> uint256:
+def price(_amount: uint256, _promo_code: bytes32) -> uint256:
     assert _amount > 0, "Amount should be greater than zero"
 
     _total_cost: uint256 = self._price(_amount, _promo_code)
@@ -336,7 +336,7 @@ def _mint(_to: address, _token_id: uint256):
     log Transfer(empty(address), _to, _token_id)
 
 @external
-def mint(_to: address, _amount: uint256, _promo_code: String[10], _paloma: bytes32, _paid_amount: uint256):
+def mint(_to: address, _amount: uint256, _promo_code: bytes32, _paloma: bytes32, _paid_amount: uint256):
     self._paloma_check()
 
     _promo_codes: PromoCode = self.promo_codes[_promo_code]
@@ -426,7 +426,7 @@ def refund(_to: address, _amount: uint256):
     log RefundOccurred(_to, _amount)
 
 @external
-def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: String[10], _fee: uint24, _paloma: bytes32):
+def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "approve Failed"
     assert _node_count > 0, "Node count should be greater than 0"
     assert _total_cost > 0, "Total cost should be greater than 0"
@@ -449,7 +449,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
 
 @payable
 @external
-def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: String[10], _fee: uint24, _paloma: bytes32):
+def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
     assert _node_count > 0, "Node count should be greater than 0"
     assert _total_cost > 0, "Total cost should be greater than 0"
     # # Approve WETH9 for the swap router
