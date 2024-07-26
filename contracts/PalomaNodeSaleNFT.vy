@@ -150,6 +150,8 @@ referral_rewards: public(HashMap[address, uint256])
 referral_rewards_sum: public(uint256)
 whitelist_amounts: public(HashMap[address, uint256])
 withdrawable_funds: public(uint256)
+start_timestamp: public(uint256)
+end_timestamp: public(uint256)
 
 interface ISwapRouter02:
     def exactInputSingle(params: ExactInputSingleParams) -> uint256: payable
@@ -166,10 +168,12 @@ interface ERC20:
 
 # Constructor
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
+    self.start_timestamp = _start_timestamp
+    self.end_timestamp = _end_timestamp
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
     WETH9 = staticcall ISwapRouter02(_swap_router).WETH9()
