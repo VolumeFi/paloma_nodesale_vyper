@@ -74,6 +74,7 @@ referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 referral_rewards: public(HashMap[address, uint256])
 referral_rewards_sum: public(uint256)
+withdrawable_funds: public(uint256)
 
 interface ISwapRouter02:
     def exactInputSingle(params: ExactInputSingleParams) -> uint256: payable
@@ -167,15 +168,17 @@ def claim_referral_reward():
     log RewardClaimed(msg.sender, _rewards)
 
 @external
-def add_referral_reward(_recipient: address, _final_price: uint256):
+def add_referral_reward(_recipient: address, _final_cost: uint256):
     self._paloma_check()
-    assert _recipient != empty(address), "Invalid buyer address"
-
     _referral_reward: uint256 = 0
-    _referral_reward = unsafe_div(unsafe_mul(_final_price, self.referral_reward_percentage), 10000)
-    self.referral_rewards[_recipient] = self.referral_rewards[_recipient] + _referral_reward
-    self.referral_rewards_sum = self.referral_rewards_sum + _referral_reward
-    log ReferralReward(_recipient, _referral_reward)
+
+    if _recipient != empty(address):
+        _referral_reward = unsafe_div(unsafe_mul(_final_cost, self.referral_reward_percentage), 10000)
+        self.referral_rewards[_recipient] = self.referral_rewards[_recipient] + _referral_reward
+        self.referral_rewards_sum = self.referral_rewards_sum + _referral_reward
+        log ReferralReward(_recipient, _referral_reward)
+
+    self.withdrawable_funds = self.withdrawable_funds + _final_cost - _referral_reward
 
 @external
 def refund(_to: address, _amount: uint256):
@@ -240,13 +243,11 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
 def withdraw_funds():
     self._fund_receiver_check()
     _funds_receiver: address = self.funds_receiver
-    _balance: uint256 = staticcall ERC20(REWARD_TOKEN).balanceOf(self)
-    _referral_rewards_sum: uint256 = self.referral_rewards_sum
-    assert _balance >= _referral_rewards_sum, "Not enough balance"
-    _amount: uint256 = unsafe_sub(_balance, _referral_rewards_sum)
-    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "fund withdraw Failed"
-
-    log FundsWithdrawn(msg.sender, _amount)
+    _withdrawable_funds: uint256 = self.withdrawable_funds
+    assert _withdrawable_funds > 0, "Not enough balance"
+    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _withdrawable_funds, default_return_value=True), "Fund withdraw Failed"
+    self.withdrawable_funds = 0
+    log FundsWithdrawn(msg.sender, _withdrawable_funds)
 
 @external
 @payable

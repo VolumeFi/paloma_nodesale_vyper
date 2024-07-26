@@ -149,6 +149,7 @@ average_cost: public(HashMap[uint256, uint256])
 referral_rewards: public(HashMap[address, uint256])
 referral_rewards_sum: public(uint256)
 whitelist_amounts: public(HashMap[address, uint256])
+withdrawable_funds: public(uint256)
 
 interface ISwapRouter02:
     def exactInputSingle(params: ExactInputSingleParams) -> uint256: payable
@@ -359,12 +360,12 @@ def mint(_to: address, _amount: uint256, _promo_code: bytes32, _paloma: bytes32,
         log RefundRequested(_to, _paid_amount)
         return
 
-    _final_price: uint256 = self._price(_amount, _promo_code)
-    if _final_price != _paid_amount:
+    _final_cost: uint256 = self._price(_amount, _promo_code)
+    if _final_cost != _paid_amount:
         log RefundRequested(_to, _paid_amount)
         return
 
-    _average_cost: uint256 = unsafe_div(_final_price, _amount)
+    _average_cost: uint256 = unsafe_div(_final_cost, _amount)
 
     for i: uint256 in range(MAX_MINTABLE_AMOUNT):
         if i >= _amount:
@@ -407,15 +408,17 @@ def redeem_from_whitelist(_to: address, _paloma: bytes32):
     log WhitelistAmountRedeemed(_to, _new_amount)
 
 @external
-def add_referral_reward(_recipient: address, _final_price: uint256):
+def add_referral_reward(_recipient: address, _final_cost: uint256):
     self._paloma_check()
-    assert _recipient != empty(address), "Invalid buyer address"
-
     _referral_reward: uint256 = 0
-    _referral_reward = unsafe_div(unsafe_mul(_final_price, self.referral_reward_percentage), 10000)
-    self.referral_rewards[_recipient] = self.referral_rewards[_recipient] + _referral_reward
-    self.referral_rewards_sum = self.referral_rewards_sum + _referral_reward
-    log ReferralReward(_recipient, _referral_reward)
+
+    if _recipient != empty(address):
+        _referral_reward = unsafe_div(unsafe_mul(_final_cost, self.referral_reward_percentage), 10000)
+        self.referral_rewards[_recipient] = self.referral_rewards[_recipient] + _referral_reward
+        self.referral_rewards_sum = self.referral_rewards_sum + _referral_reward
+        log ReferralReward(_recipient, _referral_reward)
+    
+    self.withdrawable_funds = self.withdrawable_funds + _final_cost - _referral_reward
 
 @external
 def refund(_to: address, _amount: uint256):
@@ -480,13 +483,11 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
 def withdraw_funds():
     self._fund_receiver_check()
     _funds_receiver: address = self.funds_receiver
-    _balance: uint256 = staticcall ERC20(REWARD_TOKEN).balanceOf(self)
-    _referral_rewards_sum: uint256 = self.referral_rewards_sum
-    assert _balance >= _referral_rewards_sum, "Not enough balance"
-    _amount: uint256 = unsafe_sub(_balance, _referral_rewards_sum)
-    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _amount, default_return_value=True), "Fund withdraw Failed"
-
-    log FundsWithdrawn(msg.sender, _amount)
+    _withdrawable_funds: uint256 = self.withdrawable_funds
+    assert _withdrawable_funds > 0, "Not enough balance"
+    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _withdrawable_funds, default_return_value=True), "Fund withdraw Failed"
+    self.withdrawable_funds = 0
+    log FundsWithdrawn(msg.sender, _withdrawable_funds)
 
 @external
 @payable
