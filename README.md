@@ -1,20 +1,3 @@
-# Paloma Node Sale NFT
-
-## Overview
-
-This project contains the smart contract for a Node Sale NFT using Vyper. The contract is designed for the Paloma blockchain and manages the sale and ownership of NFTs representing nodes in the network.
-
-## Features
-
-- **NFT Creation**: Allows the creation of unique NFTs representing nodes.
-- **Ownership Management**: Tracks the ownership of each NFT.
-- **Sale Mechanism**: Facilitates the sale of nodes through NFT transactions.
-
-## Requirements
-
-- Vyper: The smart contract is written in Vyper and requires the Vyper compiler for deployment.
-- Ethereum Virtual Machine (EVM) Compatible Blockchain: Designed for deployment on EVM-compatible blockchains, specifically the Paloma blockchain.
-
 # Paloma Node Sale Contract
 
 This Vyper contract facilitates the sale of nodes in the Paloma network, allowing users to purchase nodes using either ETH or ERC20 tokens. It includes features such as referral rewards, fund withdrawal by the admin, and time-bound sale periods.
@@ -82,3 +65,20 @@ This contract is written in Vyper and requires a Vyper compiler for deployment. 
 ## License
 
 This project is licensed under the Apache License 2.0.
+
+# Paloma Node Sale NFT
+
+## Overview
+
+This project contains the smart contract for a Node Sale NFT using Vyper. The contract is designed for the Paloma blockchain and manages the sale and ownership of NFTs representing nodes in the network.
+
+## Features
+
+- **NFT Creation**: Allows the creation of unique NFTs representing nodes.
+- **Ownership Management**: Tracks the ownership of each NFT.
+- **Sale Mechanism**: Facilitates the sale of nodes through NFT transactions.
+
+## Requirements
+
+- Vyper: The smart contract is written in Vyper and requires the Vyper compiler for deployment.
+- Ethereum Virtual Machine (EVM) Compatible Blockchain: Designed for deployment on EVM-compatible blockchains, specifically the Paloma blockchain.
