@@ -30,7 +30,7 @@ def main():
         end_timestamp = 1726225200
         processing_fee = 5000000
 
-        palomaNodeSale = project.palomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
         print(palomaNodeSale)
 
     with networks.parse_network_choice("bsc:mainnet") as provider:
@@ -45,7 +45,7 @@ def main():
         end_timestamp = 1726225200
         processing_fee = 5000000
 
-        palomaNodeSale = project.palomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
         print(palomaNodeSale)
 
     with networks.parse_network_choice("polygon:mainnet:alchemy") as provider:
@@ -60,7 +60,7 @@ def main():
         end_timestamp = 1726225200
         processing_fee = 5000000
 
-        palomaNodeSale = project.palomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
         print(palomaNodeSale)
 
     with networks.parse_network_choice("blast:mainnet") as provider:
@@ -75,7 +75,7 @@ def main():
         end_timestamp = 1726225200
         processing_fee = 5000000
 
-        palomaNodeSale = project.palomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
         print(palomaNodeSale)
 
     with networks.parse_network_choice("base:mainnet:alchemy") as provider:
@@ -90,7 +90,7 @@ def main():
         end_timestamp = 1726225200
         processing_fee = 5000000
 
-        palomaNodeSale = project.palomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
         print(palomaNodeSale)
 
     with networks.parse_network_choice("optimism:mainnet:alchemy") as provider:
@@ -105,5 +105,5 @@ def main():
         end_timestamp = 1726225200
         processing_fee = 5000000
 
-        palomaNodeSale = project.palomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
         print(palomaNodeSale)
