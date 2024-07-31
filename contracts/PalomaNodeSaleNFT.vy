@@ -90,6 +90,10 @@ event FundsReceiverChanged:
     admin: indexed(address)
     new_funds_receiver: address
 
+event FeeReceiverChanged:
+    admin: indexed(address)
+    new_fee_receiver: address
+
 event WhitelistAmountUpdatedByAdmin:
     redeemer: indexed(address)
     new_amount: uint256
@@ -156,6 +160,8 @@ whitelist_amounts: public(HashMap[address, uint256])
 withdrawable_funds: public(uint256)
 start_timestamp: public(uint256)
 end_timestamp: public(uint256)
+processing_fee: public(uint256)
+fee_receiver: public(address)
 
 interface ISwapRouter02:
     def exactInputSingle(params: ExactInputSingleParams) -> uint256: payable
@@ -172,10 +178,11 @@ interface ERC20:
 
 # Constructor
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
+    self.fee_receiver = _fee_receiver
     self.start_timestamp = _start_timestamp
     self.end_timestamp = _end_timestamp
     REWARD_TOKEN = _reward_token
@@ -184,6 +191,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log UpdateCompass(empty(address), _compass)
     log UpdateAdmin(empty(address), _admin)
     log FundsReceiverChanged(empty(address), _fund_receiver)
+    log FeeReceiverChanged(empty(address), _fee_receiver)
     log StartEndTimestampChanged(_start_timestamp, _end_timestamp)
 
 @internal
@@ -194,6 +202,10 @@ def _paloma_check():
 @internal
 def _fund_receiver_check():
     assert msg.sender == self.funds_receiver, "Not fund receiver"
+
+@internal
+def _fee_receiver_check():
+    assert msg.sender == self.fee_receiver, "Not fee receiver"
 
 @internal
 def _admin_check():
@@ -241,6 +253,14 @@ def set_funds_receiver(_new_funds_receiver: address):
     assert _new_funds_receiver != empty(address), "FundsReceiver cannot be zero"
     self.funds_receiver = _new_funds_receiver
     log FundsReceiverChanged(msg.sender, _new_funds_receiver)
+
+@external
+def set_fee_receiver(_new_fee_receiver: address):
+    self._fee_receiver_check()
+
+    assert _new_fee_receiver != empty(address), "FeeReceiver cannot be zero"
+    self.fee_receiver = _new_fee_receiver
+    log FeeReceiverChanged(msg.sender, _new_fee_receiver)
 
 @external
 def set_referral_percentages(
@@ -458,6 +478,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
     assert _node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
 
+    _processing_fee: uint256 = self.processing_fee
     _average_cost: uint256 = unsafe_div(_total_cost, _node_count)
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = _token_in,
@@ -465,14 +486,17 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
         fee = _fee,
         recipient = self,
         amountIn = _amount_in,
-        amountOutMinimum = _total_cost,
+        amountOutMinimum = unsafe_add(_total_cost, _processing_fee),
         sqrtPriceLimitX96 = 0
     )
 
     _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
+    _paid_amount_without_fee: uint256 = unsafe_sub(_swapped_amount, _processing_fee)
+    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _paid_amount_without_fee)
+    log Purchased(msg.sender, _token_in, _paid_amount_without_fee, _node_count, _average_cost, _promo_code, _paloma)
 
-    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
-    log Purchased(msg.sender, _token_in, _total_cost, _node_count, _average_cost, _promo_code, _paloma)
+    _fee_receiver: address = self.fee_receiver
+    assert extcall ERC20(REWARD_TOKEN).transfer(_fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
 
 @payable
 @external
@@ -481,11 +505,8 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
     assert block.timestamp < self.end_timestamp
     assert _node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
-    # # Approve WETH9 for the swap router
-    # assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value), "appprove Failed"
-    # # Wrap ETH to WETH9
-    # extcall IWETH(WETH9).deposit(value=msg.value)
-
+    
+    _processing_fee: uint256 = self.processing_fee
     _average_cost: uint256 = unsafe_div(_total_cost, _node_count)
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = WETH9,
@@ -493,15 +514,18 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
         fee = _fee,
         recipient = self,
         amountIn = msg.value,
-        amountOutMinimum = _average_cost,
+        amountOutMinimum = unsafe_add(_total_cost, _processing_fee),
         sqrtPriceLimitX96 = 0
     )
 
     # Execute the swap
     _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params, value=msg.value)
+    _paid_amount_without_fee: uint256 = unsafe_sub(_swapped_amount, _processing_fee)
+    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _paid_amount_without_fee)
+    log Purchased(msg.sender, empty(address), _paid_amount_without_fee, _node_count, _average_cost, _promo_code, _paloma)
 
-    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _swapped_amount)
-    log Purchased(msg.sender, empty(address), _total_cost, _node_count, _average_cost, _promo_code, _paloma)
+    _fee_receiver: address = self.fee_receiver
+    assert extcall ERC20(REWARD_TOKEN).transfer(_fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
 
 @external
 def withdraw_funds():
