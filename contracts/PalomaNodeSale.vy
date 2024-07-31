@@ -207,7 +207,7 @@ def set_processing_fee(_new_processing_fee: uint256):
 
     self.processing_fee = _new_processing_fee
     log ProcessingFeeChanged(msg.sender, _new_processing_fee)
-    
+
 @external
 def claim_referral_reward():
     _rewards: uint256 = self.referral_rewards[msg.sender]
@@ -257,7 +257,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
         fee = _fee,
         recipient = self,
         amountIn = _amount_in,
-        amountOutMinimum = unsafe_add(_total_cost, _processing_fee),
+        amountOutMinimum = _total_cost + _processing_fee,
         sqrtPriceLimitX96 = 0
     )
 
@@ -266,8 +266,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _paid_amount_without_fee)
     log Purchased(msg.sender, _token_in, _paid_amount_without_fee, _node_count, _average_cost, _promo_code, _paloma)
 
-    _fee_receiver: address = self.fee_receiver
-    assert extcall ERC20(REWARD_TOKEN).transfer(_fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
 
 @payable
 @external
@@ -285,7 +284,7 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
         fee = _fee,
         recipient = self,
         amountIn = msg.value,
-        amountOutMinimum = unsafe_add(_total_cost, _processing_fee),
+        amountOutMinimum = _total_cost + _processing_fee,
         sqrtPriceLimitX96 = 0
     )
 
@@ -295,8 +294,7 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _paid_amount_without_fee)
     log Purchased(msg.sender, empty(address), _paid_amount_without_fee, _node_count, _average_cost, _promo_code, _paloma)
 
-    _fee_receiver: address = self.fee_receiver
-    assert extcall ERC20(REWARD_TOKEN).transfer(_fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
 
 @external
 def withdraw_funds():
