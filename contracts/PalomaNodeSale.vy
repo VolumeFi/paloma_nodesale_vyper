@@ -55,6 +55,10 @@ event FundsReceiverChanged:
     admin: indexed(address)
     new_funds_receiver: address
 
+event FeeReceiverChanged:
+    admin: indexed(address)
+    new_fee_receiver: address
+
 event Purchased:
     buyer: indexed(address)
     token_in: address
@@ -99,10 +103,11 @@ interface ERC20:
 
 # Constructor
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
+    self.fee_receiver = _fee_receiver
     self.start_timestamp = _start_timestamp
     self.end_timestamp = _end_timestamp
     self.processing_fee = _processing_fee
@@ -112,6 +117,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log UpdateCompass(empty(address), _compass)
     log UpdateAdmin(empty(address), _admin)
     log FundsReceiverChanged(empty(address), _fund_receiver)
+    log FeeReceiverChanged(empty(address), _fee_receiver)
     log StartEndTimestampChanged(_start_timestamp, _end_timestamp)
 
 @internal
@@ -122,6 +128,10 @@ def _paloma_check():
 @internal
 def _fund_receiver_check():
     assert msg.sender == self.funds_receiver, "Not fund receiver"
+
+@internal
+def _fee_receiver_check():
+    assert msg.sender == self.fee_receiver, "Not fee receiver"
 
 @internal
 def _admin_check():
@@ -154,6 +164,14 @@ def set_funds_receiver(_new_funds_receiver: address):
     self.funds_receiver = _new_funds_receiver
     log FundsReceiverChanged(msg.sender, _new_funds_receiver)
 
+@external
+def set_fee_receiver(_new_fee_receiver: address):
+    self._fee_receiver_check()
+
+    assert _new_fee_receiver != empty(address), "FeeReceiver cannot be zero"
+    self.fee_receiver = _new_fee_receiver
+    log FeeReceiverChanged(msg.sender, _new_fee_receiver)
+    
 @external
 def set_referral_percentages(
     _new_referral_discount_percentage: uint256,
