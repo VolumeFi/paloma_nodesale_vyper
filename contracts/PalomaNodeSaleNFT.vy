@@ -206,10 +206,6 @@ def _paloma_check():
     assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
 
 @internal
-def _fund_receiver_check():
-    assert msg.sender == self.funds_receiver, "Not fund receiver"
-
-@internal
 def _admin_check():
     assert msg.sender == self.admin, "Not admin"
 
@@ -250,7 +246,7 @@ def remove_promo_code(_promo_code: bytes32):
 
 @external
 def set_funds_receiver(_new_funds_receiver: address):
-    self._fund_receiver_check()
+    self._admin_check()
 
     assert _new_funds_receiver != empty(address), "FundsReceiver cannot be zero"
     self.funds_receiver = _new_funds_receiver
@@ -481,62 +477,69 @@ def refund(_to: address, _amount: uint256):
 
 @external
 def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
-    assert block.timestamp >= self.start_timestamp
-    assert block.timestamp < self.end_timestamp
+    assert block.timestamp >= self.start_timestamp, "!start"
+    assert block.timestamp < self.end_timestamp, "!end"
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "Approve failed"
     assert _node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
+    assert extcall ERC20(_token_in).transferFrom(msg.sender, self, _amount_in, default_return_value=True), "Send Reward Failed"
 
     _processing_fee: uint256 = self.processing_fee
     _average_cost: uint256 = unsafe_div(_total_cost, _node_count)
+    _amount_in_minimum: uint256 = _total_cost + _processing_fee
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = _token_in,
         tokenOut = REWARD_TOKEN,
         fee = _fee,
         recipient = self,
         amountIn = _amount_in,
-        amountOutMinimum = _total_cost + _processing_fee,
+        amountOutMinimum = _amount_in_minimum,
         sqrtPriceLimitX96 = 0
     )
 
     _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
-    _paid_amount_without_fee: uint256 = unsafe_sub(_swapped_amount, _processing_fee)
-    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _paid_amount_without_fee)
-    log Purchased(msg.sender, _token_in, _paid_amount_without_fee, _node_count, _average_cost, _promo_code, _paloma)
+    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _total_cost)
+    log Purchased(msg.sender, _token_in, _total_cost, _node_count, _average_cost, _promo_code, _paloma)
 
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
+
+    _remainder: uint256 = _swapped_amount - _amount_in_minimum
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _remainder, default_return_value=True), "Dust Failed"
 
 @payable
 @external
 def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
-    assert block.timestamp >= self.start_timestamp
-    assert block.timestamp < self.end_timestamp
+    assert block.timestamp >= self.start_timestamp, "!start"
+    assert block.timestamp < self.end_timestamp, "!end"
     assert _node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
     
     _processing_fee: uint256 = self.processing_fee
     _average_cost: uint256 = unsafe_div(_total_cost, _node_count)
+    _amount_in_minimum: uint256 = _total_cost + _processing_fee
     _params: ExactInputSingleParams = ExactInputSingleParams(
         tokenIn = WETH9,
         tokenOut = REWARD_TOKEN,
         fee = _fee,
         recipient = self,
         amountIn = msg.value,
-        amountOutMinimum = _total_cost + _processing_fee,
+        amountOutMinimum = _amount_in_minimum,
         sqrtPriceLimitX96 = 0
     )
 
     # Execute the swap
     _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params, value=msg.value)
-    _paid_amount_without_fee: uint256 = unsafe_sub(_swapped_amount, _processing_fee)
-    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _paid_amount_without_fee)
-    log Purchased(msg.sender, empty(address), _paid_amount_without_fee, _node_count, _average_cost, _promo_code, _paloma)
+    self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _total_cost)
+    log Purchased(msg.sender, empty(address), _total_cost, _node_count, _average_cost, _promo_code, _paloma)
 
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
 
+    _remainder: uint256 = _swapped_amount - _amount_in_minimum
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _remainder, default_return_value=True), "Dust Failed"
+
 @external
 def withdraw_funds():
-    self._fund_receiver_check()
+    self._admin_check()
     _funds_receiver: address = self.funds_receiver
     _withdrawable_funds: uint256 = self.withdrawable_funds
     assert _withdrawable_funds > 0, "Not enough balance"
