@@ -3,3 +3,8 @@ name: node-license5-vyper
 vyper:
   version: 0.4.0
   evm_version: cancun
+
+node:
+  arbitrum:
+    mainnet:
+      uri: https://arbitrum-one-rpc.publicnode.com

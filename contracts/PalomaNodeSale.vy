@@ -136,7 +136,8 @@ def _admin_check():
 
 @external
 def update_compass(_new_compass: address):
-    self._paloma_check()
+    # self._paloma_check()
+    self._admin_check()
     self.compass = _new_compass
     log UpdateCompass(msg.sender, _new_compass)
 
@@ -302,12 +303,11 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
 @external
 def withdraw_funds():
     self._admin_check()
-    _funds_receiver: address = self.funds_receiver
     _withdrawable_funds: uint256 = self.withdrawable_funds
     assert _withdrawable_funds > 0, "Not enough balance"
-    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _withdrawable_funds, default_return_value=True), "Fund withdraw Failed"
-    self.withdrawable_funds = 0
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _withdrawable_funds, default_return_value=True), "Fund withdraw Failed"
     log FundsWithdrawn(msg.sender, _withdrawable_funds)
+    self.withdrawable_funds = 0
 
 @external
 @payable

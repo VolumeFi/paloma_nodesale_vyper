@@ -135,7 +135,7 @@ event PricingTierSetOrAdded:
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
-MAX_MINTABLE_AMOUNT: constant(uint256) = 1000
+MAX_MINTABLE_AMOUNT: constant(uint256) = 2000
 MAX_PRICING_TIERS_LEN: constant(uint256) = 40
 GRAINS_PER_NODE: constant(uint256) = 50000
 
@@ -180,6 +180,9 @@ interface ERC20:
     def transferFrom(_from: address, _to: address, _value: uint256) -> bool: nonpayable
     def balanceOf(_owner: address) -> uint256: view
 
+interface COMPASS:
+    def emit_nodesale_event(_buyer: address, _paloma: bytes32, _node_count: uint256, _grain_amount: uint256): nonpayable
+
 # Constructor
 @deploy
 def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256):
@@ -211,7 +214,8 @@ def _admin_check():
 
 @external
 def update_compass(_new_compass: address):
-    self._paloma_check()
+    # self._paloma_check()
+    self._admin_check()
     self.compass = _new_compass
     log UpdateCompass(msg.sender, _new_compass)
 
@@ -423,6 +427,7 @@ def mint(_to: address, _amount: uint256, _promo_code: bytes32, _paloma: bytes32,
 
     _grain_amount: uint256 = unsafe_mul(_amount, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _amount, _grain_amount)
+    extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _amount, _grain_amount)
 
 @external
 def redeem_from_whitelist(_to: address, _paloma: bytes32):
@@ -540,12 +545,11 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
 @external
 def withdraw_funds():
     self._admin_check()
-    _funds_receiver: address = self.funds_receiver
     _withdrawable_funds: uint256 = self.withdrawable_funds
     assert _withdrawable_funds > 0, "Not enough balance"
-    assert extcall ERC20(REWARD_TOKEN).transfer(_funds_receiver, _withdrawable_funds, default_return_value=True), "Fund withdraw Failed"
-    self.withdrawable_funds = 0
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _withdrawable_funds, default_return_value=True), "Fund withdraw Failed"
     log FundsWithdrawn(msg.sender, _withdrawable_funds)
+    self.withdrawable_funds = 0
 
 @external
 @payable
