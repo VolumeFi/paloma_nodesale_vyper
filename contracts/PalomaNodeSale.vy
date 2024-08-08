@@ -70,7 +70,6 @@ event Purchased:
     node_count: uint256
     average_cost: uint256
     promo_code: bytes32
-    paloma: bytes32
 
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
@@ -239,7 +238,7 @@ def refund(_to: address, _amount: uint256):
     log RefundOccurred(_to, _amount)
 
 @external
-def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
+def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _amount_in, default_return_value=True), "Approve failed"
@@ -262,7 +261,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
 
     _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params)
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _total_cost)
-    log Purchased(msg.sender, _token_in, _total_cost, _node_count, _average_cost, _promo_code, _paloma)
+    log Purchased(msg.sender, _token_in, _total_cost, _node_count, _average_cost, _promo_code)
 
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
 
@@ -271,7 +270,7 @@ def pay_for_token(_token_in: address, _amount_in: uint256, _node_count: uint256,
 
 @payable
 @external
-def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24, _paloma: bytes32):
+def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _fee: uint24):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
     assert _node_count > 0, "Invalid node count"
@@ -293,7 +292,7 @@ def pay_for_eth(_node_count: uint256, _total_cost: uint256, _promo_code: bytes32
     # Execute the swap
     _swapped_amount: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactInputSingle(_params, value=msg.value)
     self.paid_amount[msg.sender] = unsafe_add(self.paid_amount[msg.sender], _total_cost)
-    log Purchased(msg.sender, empty(address), _total_cost, _node_count, _average_cost, _promo_code, _paloma)
+    log Purchased(msg.sender, empty(address), _total_cost, _node_count, _average_cost, _promo_code)
 
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
 
