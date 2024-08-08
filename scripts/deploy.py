@@ -19,20 +19,20 @@ def main():
     #     print(palomaNodeSaleNFT)
     
     # ETH/BNB/MATIC/BLAST/BASE/OP for PalomaNodeSale.vy
-    with networks.parse_network_choice("ethereum:mainnet:alchemy") as provider:
-        acct = accounts.load("Deployer")
-        compass = "0x2fE59ff4f13Ea42444B3BAB28Bdd69878d38010F"
-        swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
-        reward_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"     # USDC
-        admin = "0x2175e091176F43eD55313e4Bc31FE4E94051A6fE"
-        fund_receiver = "0x2175e091176F43eD55313e4Bc31FE4E94051A6fE"    # temporary
-        fee_receiver = "0x2175e091176F43eD55313e4Bc31FE4E94051A6fE"
-        start_timestamp = 1722498132
-        end_timestamp = 1726225200
-        processing_fee = 5000000
+    # with networks.parse_network_choice("ethereum:mainnet:alchemy") as provider:
+    #     acct = accounts.load("Deployer")
+    #     compass = "0x2fE59ff4f13Ea42444B3BAB28Bdd69878d38010F"
+    #     swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+    #     reward_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"     # USDC
+    #     admin = "0x2175e091176F43eD55313e4Bc31FE4E94051A6fE"
+    #     fund_receiver = "0x2175e091176F43eD55313e4Bc31FE4E94051A6fE"    # temporary
+    #     fee_receiver = "0x2175e091176F43eD55313e4Bc31FE4E94051A6fE"
+    #     start_timestamp = 1722498132
+    #     end_timestamp = 1726225200
+    #     processing_fee = 5000000
 
-        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
-        print(palomaNodeSale)
+    #     palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, sender=acct)
+    #     print(palomaNodeSale)
 
     # with networks.parse_network_choice("bsc:mainnet") as provider:
     #     acct = accounts.load("Deployer")

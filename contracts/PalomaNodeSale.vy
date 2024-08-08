@@ -43,14 +43,15 @@ event FundsReceiverChanged:
     new_funds_receiver: address
 
 event NodeSold:
-    buyer: address
+    buyer: indexed(address)
     paloma: bytes32
     node_count: uint256
     grain_amount: uint256 
 
-event ProcessingFeeChanged:
+event FeeChanged:
     admin: indexed(address)
     new_processing_fee: uint256
+    new_subscription_fee: uint256
 
 event PromoCodeCreated:
     promo_code: bytes32
@@ -64,6 +65,7 @@ event Purchased:
     token_in: address
     fund_usd_amount: uint256
     fee_usd_amount: uint256
+    subscription_usd_amount: uint256
     node_count: uint256
     promo_code: bytes32
 
@@ -96,23 +98,26 @@ WETH9: public(immutable(address))
 
 GRAINS_PER_NODE: constant(uint256) = 50000
 
+paloma: public(bytes32)
 admin: public(address)
 compass: public(address)
-end_timestamp: public(uint256)
 fee_receiver: public(address)
 funds_receiver: public(address)
-nonce: public(HashMap[uint256, uint256])
-paloma: public(bytes32)
+start_timestamp: public(uint256)
+end_timestamp: public(uint256)
 processing_fee: public(uint256)
+subscription_fee: public(uint256)
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
-start_timestamp: public(uint256)
-activate: public(HashMap[address, bytes32])
+
+nonce: public(HashMap[uint256, uint256])
+subscription: public(HashMap[address, uint256])
+activates: public(HashMap[address, bytes32])
 promo_codes: public(HashMap[bytes32, PromoCode])
 whitelist_amounts: public(HashMap[address, uint256])
 
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
@@ -120,6 +125,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     self.start_timestamp = _start_timestamp
     self.end_timestamp = _end_timestamp
     self.processing_fee = _processing_fee
+    self.subscription_fee = _subscription_fee
     self.referral_discount_percentage = _referral_discount_percentage
     self.referral_reward_percentage = _referral_reward_percentage
     REWARD_TOKEN = _reward_token
@@ -129,13 +135,13 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log UpdateAdmin(empty(address), _admin)
     log FundsReceiverChanged(empty(address), _fund_receiver)
     log FeeReceiverChanged(empty(address), _fee_receiver)
-    log ProcessingFeeChanged(_admin, _processing_fee)
+    log FeeChanged(_admin, _processing_fee, _subscription_fee)
     log StartEndTimestampChanged(_start_timestamp, _end_timestamp)
     log ReferralRewardPercentagesChanged(_referral_discount_percentage, _referral_reward_percentage)
 
 @external
 def activate_wallet(_paloma: bytes32):
-    self.activate[msg.sender] = _paloma
+    self.activates[msg.sender] = _paloma
     log Activated(msg.sender, _paloma)
 
 @external
@@ -166,7 +172,7 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256):
     self._paloma_check()
 
     assert self.nonce[_nonce] == 0, "Already emited"
-    _paloma: bytes32 = self.activate[_to]
+    _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount)
@@ -178,7 +184,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     self._paloma_check()
 
     assert self.nonce[_nonce] == 0, "Already emited"
-    _paloma: bytes32 = self.activate[_to]
+    _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
     _whitelist_amounts: uint256 = self.whitelist_amounts[_to]
     assert _whitelist_amounts > _count, "Invalid whitelist amount"
@@ -191,14 +197,20 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
 
 @payable
 @external
-def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204]):
+def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
-
+    assert _subscription_month > 0, "Invalid fee months"
     _processing_fee: uint256 = self.processing_fee
     _amount_out: uint256 = _total_cost + _processing_fee
+
+    _enhanced_fee: uint256 = 0
+    if _enhanced:
+        _enhanced_fee = self.subscription_fee * _subscription_month
+        _amount_out = _amount_out + _enhanced_fee
+        self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
 
     _params: ExactOutputParams = ExactOutputParams(
         path=_path,
@@ -217,25 +229,33 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
             assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
-    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee, default_return_value=True), "Processing Fee Failed"
 
-    log Purchased(msg.sender, empty(address), _total_cost, _processing_fee, _estimated_node_count, _promo_code)
+    log Purchased(msg.sender, empty(address), _total_cost, _processing_fee, _enhanced_fee, _estimated_node_count, _promo_code)
 
     _dust: uint256 = unsafe_sub(msg.value, _amount_in)
     if _dust > 0:
         send(msg.sender, _dust)
 
 @external
-def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204]):
+def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _estimated_amount_in, default_return_value=True), "Approve failed"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
+    assert _subscription_month > 0, "Invalid fee months"
     assert extcall ERC20(_token_in).transferFrom(msg.sender, self, _estimated_amount_in, default_return_value=True), "Send Reward Failed"
 
     _processing_fee: uint256 = self.processing_fee
     _amount_out: uint256 = _total_cost + _processing_fee
+
+    _enhanced_fee: uint256 = 0
+    if _enhanced:
+        _enhanced_fee = self.subscription_fee * _subscription_month
+        _amount_out = _amount_out + _enhanced_fee
+        self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
+
     _params: ExactOutputParams = ExactOutputParams(
         path=_path,
         recipient=self,
@@ -253,9 +273,9 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
             assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
-    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee, default_return_value=True), "Processing Fee Failed"
 
-    log Purchased(msg.sender, _token_in, _total_cost, _processing_fee, _estimated_node_count, _promo_code)
+    log Purchased(msg.sender, _token_in, _total_cost, _processing_fee, _enhanced_fee, _estimated_node_count, _promo_code)
 
     _dust: uint256 = unsafe_sub(_estimated_amount_in, _amount_in)
     if _dust > 0:
@@ -285,11 +305,12 @@ def set_paloma():
     log SetPaloma(_paloma)
 
 @external
-def set_processing_fee(_new_processing_fee: uint256):
+def set_processing_fee(_new_processing_fee: uint256, _new_subscription_fee: uint256):
     self._admin_check()
 
     self.processing_fee = _new_processing_fee
-    log ProcessingFeeChanged(msg.sender, _new_processing_fee)
+    self.subscription_fee = _new_subscription_fee
+    log FeeChanged(msg.sender, _new_processing_fee, _new_subscription_fee)
 
 @external
 def set_referral_percentages(
