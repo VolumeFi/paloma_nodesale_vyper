@@ -3,3 +3,46 @@ name: node-license5-vyper
 vyper:
   version: 0.4.0
   evm_version: cancun
+
+node:
+  arbitrum:
+    mainnet:
+      uri: https://arbitrum-one-rpc.publicnode.com
+
+foundry:
+  fork:
+    ethereum:
+      mainnet:
+        upstream_provider: alchemy
+    arbitrum:
+      mainnet:
+        upstream_provider: alchemy
+hardhat:
+  fork:
+    ethereum:
+      mainnet:
+        upstream_provider: alchemy
+    arbitrum:
+      mainnet:
+        upstream_provider: alchemy
+ethereum:
+  default_network: mainnet-fork
+  mainnet_fork:
+    default_provider: foundry
+arbitrum:
+  default_network: mainnet-fork
+  mainnet_fork:
+    default_provider: foundry
+geth:
+  gnosis:
+    mainnet:
+      uri: https://rpc.gnosischain.com/
+  arbitrum:
+    mainnet:
+      uri: https://arb1.arbitrum.io/rpc/
+  base:
+    mainnet:
+      uri: https://mainnet.base.org/
+  optimism:
+    mainnet:
+      uri: https://mainnet.optimism.io/
