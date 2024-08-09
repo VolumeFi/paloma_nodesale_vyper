@@ -1,21 +1,29 @@
 import pytest
-from ape import project, accounts
+import ape
 from eth_abi import encode
 from web3 import Web3
 
 @pytest.fixture(scope="session")
-def deployer():
+def deployer(accounts):
     return accounts[0]
 
 @pytest.fixture(scope="session")
 def compass(accounts):
     return accounts[1]
 
+@pytest.fixture(scope="session")
+def recipient(accounts):
+    return accounts[2]
+
+@pytest.fixture(scope="session")
+def whitelistacc(accounts):
+    return accounts[3]
+
 def function_signature(str):
     return Web3.keccak(text=str)[:4]
 
 @pytest.fixture(scope="session")
-def contract(deployer, compass):
+def PalomaNodeSale(deployer, compass, project):
     contract = deployer.deploy(
         project.PalomaNodeSale,
         compass,  # compass
@@ -38,174 +46,174 @@ def contract(deployer, compass):
 
     return contract
 
-def test_initialization(contract, deployer, compass):
-    assert contract.admin() == deployer
-    assert contract.compass() == compass
-    assert contract.funds_receiver() == "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"
-    assert contract.fee_receiver() == "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
+def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelistacc, accounts, project):
+    assert PalomaNodeSale.admin() == deployer
+    assert PalomaNodeSale.compass() == compass
+    assert PalomaNodeSale.funds_receiver() == "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"
+    assert PalomaNodeSale.fee_receiver() == "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
+    
+    # activate_wallet
+    paloma_wcc = encode(["bytes32"], [b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd4\x5d\x0b\xee\xea\xc4\xc2\xf2\x36\x22\x3a\x70\x27\x80\x76\x6e\xb2\x80\x03\x9c'])
+    PalomaNodeSale.activate_wallet(paloma_wcc, sender=deployer)
+    assert PalomaNodeSale.activates(deployer) == paloma_wcc
 
-def test_activate_wallet(contract, deployer):
-    paloma = encode(["bytes32"], [b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd4\x5d\x0b\xee\xea\xc4\xc2\xf2\x36\x22\x3a\x70\x27\x80\x76\x6e\xb2\x80\x03\x9c'])
-    # paloma = b'\x00' * 32
-    # print(contract)
-    # print(paloma)
-    contract.activate_wallet(paloma, sender=deployer)
-    # assert contract.activate(deployer) == paloma
+    # create_promo_code test
+    promo_code = b'\x01' * 32
+    PalomaNodeSale.create_promo_code(promo_code, recipient, sender=deployer)
+    assert PalomaNodeSale.promo_codes(promo_code).recipient == recipient
 
-# def test_create_promo_code(contract, Deployer):
-#     promo_code = b'\x01' * 32
-#     recipient = accounts[5]
-#     contract.create_promo_code(promo_code, recipient, sender=Deployer)
-#     assert contract.promo_codes(promo_code).recipient == recipient
+    # create_promo_code_non_admin
+    with ape.reverts():
+        PalomaNodeSale.create_promo_code(promo_code, recipient, sender=recipient)
 
-# def test_create_promo_code_non_admin(contract, deployer):
-#     promo_code = b'\x01' * 32
-#     recipient = accounts[5]
-#     with pytest.raises(Exception):
-#         contract.create_promo_code(promo_code, recipient, sender=deployer)
+    # remove_promo_code
+    # PalomaNodeSale.remove_promo_code(promo_code, sender=deployer)
+    # assert not PalomaNodeSale.promo_codes(promo_code).active
 
-# def test_remove_promo_code(contract, admin):
-#     promo_code = b'\x01' * 32
-#     contract.remove_promo_code(promo_code, sender=admin)
-#     assert not contract.promo_codes(promo_code).active
+    # # remove_promo_code_non_admin
+    # with ape.reverts():
+    #     PalomaNodeSale.remove_promo_code(promo_code, sender=recipient)
 
-# def test_remove_promo_code_non_admin(contract, deployer):
-#     promo_code = b'\x01' * 32
-#     with pytest.raises(Exception):
-#         contract.remove_promo_code(promo_code, sender=deployer)
+    # update_whitelist_amounts
+    amount = 1000
+    PalomaNodeSale.update_whitelist_amounts(whitelistacc, amount, sender=deployer)
+    assert PalomaNodeSale.whitelist_amounts(whitelistacc) == amount
 
-# def test_update_whitelist_amounts(contract, admin):
-#     to_whitelist = accounts[6]
-#     amount = 1000
-#     contract.update_whitelist_amounts(to_whitelist, amount, sender=admin)
-#     assert contract.whitelist_amounts(to_whitelist) == amount
+    # update_whitelist_amount_non_admin
+    with ape.reverts():
+        PalomaNodeSale.update_whitelist_amounts(whitelistacc, amount, sender=whitelistacc)
 
-# def test_update_whitelist_amounts_non_admin(contract, deployer):
-#     to_whitelist = accounts[6]
-#     amount = 1000
-#     with pytest.raises(Exception):
-#         contract.update_whitelist_amounts(to_whitelist, amount, sender=deployer)
+    # node_sale
+    count = 10
+    nonce_val = 1
+    PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=deployer)
+    func_sig = function_signature("node_sale(address,uint256,uint256)")
+    enc_abi = encode(["(address,uint256,uint256)"], [("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", count, nonce_val)])
+    add_payload = encode(["bytes32"], [b'123456'])
+    with ape.reverts():
+        PalomaNodeSale.node_sale(deployer, count, nonce_val, sender=compass)
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
+    assert PalomaNodeSale.nonces(1) > 0
+    assert PalomaNodeSale.nonces(2) == 0
+    with ape.reverts():
+        PalomaNodeSale(sender=compass, data=payload)
 
-# def test_node_sale(contract, deployer):
-#     to = accounts[7]
-#     count = 10
-#     nonce = 1
-#     contract.activate_wallet(b'\x01' * 32, sender=to)
-#     contract.node_sale(to, count, nonce, sender=deployer)
-#     assert contract.nonce(nonce) > 0
+    # redeem_from_whitelist
+    count = 1
+    nonce_val = 2
+    to = accounts[8]
+    PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=to)
+    PalomaNodeSale.update_whitelist_amounts(to, 10, sender=deployer)
+    assert PalomaNodeSale.whitelist_amounts(to) == 10
+    func_sig = function_signature("redeem_from_whitelist(address,uint256,uint256)")
+    enc_abi = encode(["(address,uint256,uint256)"], [(to.address, 1, nonce_val)])
+    add_payload = encode(["bytes32"], [b'123456'])
+    with ape.reverts():
+        PalomaNodeSale.redeem_from_whitelist(to, count, nonce_val, sender=compass)
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
+    assert PalomaNodeSale.whitelist_amounts(to) == 9
 
-# def test_node_sale_invalid_nonce(contract, deployer):
-#     to = accounts[7]
-#     count = 10
-#     nonce = 1
-#     contract.activate_wallet(b'\x01' * 32, sender=to)
-#     contract.node_sale(to, count, nonce, sender=deployer)
-#     with pytest.raises(Exception):
-#         contract.node_sale(to, count, nonce, sender=deployer)
+    # set fee receiver
+    # new_fee_receiver = accounts[9]
+    # PalomaNodeSale.set_fee_receiver(new_fee_receiver, sender=deployer)
+    # assert PalomaNodeSale.fee_receiver() == new_fee_receiver
+    # with ape.reverts():
+    #     PalomaNodeSale.set_fee_receiver(new_fee_receiver, sender=recipient)
 
-# def test_redeem_from_whitelist(contract, admin, deployer):
-#     to = accounts[8]
-#     count = 5
-#     nonce = 2
-#     contract.activate_wallet(b'\x01' * 32, sender=to)
-#     contract.update_whitelist_amounts(to, 10, sender=admin)
-#     contract.redeem_from_whitelist(to, count, nonce, sender=deployer)
-#     assert contract.whitelist_amounts(to) == 5
+    # set funds receiver
+    # new_funds_receiver = accounts[10]
+    # PalomaNodeSale.set_funds_receiver(new_funds_receiver, sender=deployer)
+    # assert PalomaNodeSale.funds_receiver() == new_funds_receiver
+    # with ape.reverts():
+    #     PalomaNodeSale.set_funds_receiver(new_funds_receiver, sender=recipient)
 
-# def test_redeem_from_whitelist_invalid_amount(contract, admin, deployer):
-#     to = accounts[8]
-#     count = 5
-#     nonce = 2
-#     contract.activate_wallet(b'\x01' * 32, sender=to)
-#     contract.update_whitelist_amounts(to, 4, sender=admin)
-#     with pytest.raises(Exception):
-#         contract.redeem_from_whitelist(to, count, nonce, sender=deployer)
+    # set processing fee
+    new_processing_fee = 5000000
+    new_subscription_fee = 50000000
+    PalomaNodeSale.set_processing_fee(new_processing_fee, new_subscription_fee, sender=deployer)
+    assert PalomaNodeSale.processing_fee() == new_processing_fee
+    assert PalomaNodeSale.subscription_fee() == new_subscription_fee
+    with ape.reverts():
+        PalomaNodeSale.set_processing_fee(new_processing_fee, new_subscription_fee, sender=recipient)
 
-# def test_set_fee_receiver(contract, admin):
-#     new_fee_receiver = accounts[9]
-#     contract.set_fee_receiver(new_fee_receiver, sender=admin)
-#     assert contract.fee_receiver() == new_fee_receiver
+    # set referral percentages
+    new_discount_percentage = 500
+    new_reward_percentage = 1500
+    PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, sender=deployer)
+    assert PalomaNodeSale.referral_discount_percentage() == new_discount_percentage
+    assert PalomaNodeSale.referral_reward_percentage() == new_reward_percentage
+    with ape.reverts():
+        PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, sender=recipient)
 
-# def test_set_fee_receiver_non_admin(contract, deployer):
-#     new_fee_receiver = accounts[9]
-#     with pytest.raises(Exception):
-#         contract.set_fee_receiver(new_fee_receiver, sender=deployer)
+    # set start end timestamp
+    new_start_timestamp = 1722988800
+    new_end_timestamp = 1726876800
+    PalomaNodeSale.set_start_end_timestamp(new_start_timestamp, new_end_timestamp, sender=deployer)
+    assert PalomaNodeSale.start_timestamp() == new_start_timestamp
+    assert PalomaNodeSale.end_timestamp() == new_end_timestamp
+    with ape.reverts():
+        PalomaNodeSale.set_start_end_timestamp(new_start_timestamp, new_end_timestamp, sender=recipient)
 
-# def test_set_funds_receiver(contract, admin):
-#     new_funds_receiver = accounts[10]
-#     contract.set_funds_receiver(new_funds_receiver, sender=admin)
-#     assert contract.funds_receiver() == new_funds_receiver
+    # update admin
+    new_admin = accounts[11]
+    PalomaNodeSale.update_admin(new_admin, sender=deployer)
+    assert PalomaNodeSale.admin() == new_admin
+    with ape.reverts():
+        PalomaNodeSale.update_admin(new_admin, sender=recipient)
 
-# def test_set_funds_receiver_non_admin(contract, deployer):
-#     new_funds_receiver = accounts[10]
-#     with pytest.raises(Exception):
-#         contract.set_funds_receiver(new_funds_receiver, sender=deployer)
+    # pay for eth
+    eth_amount = 10**18
+    estimated_node_count = 10
+    total_cost = 500000000
+    promo_code = b'\x01' * 32
+    
+    path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x01\xf4\x82\xaf\x49\x44\x7d\x8a\x07\xe3\xbd\x95\xbd\x0d\x56\xf3\x52\x41\x52\x3f\xba\xb1'
+    enhanced = False
+    subscription_month = 0
+    balance_before = deployer.balance
+    usdc = project.USDC.at("0xaf88d065e77c8cC2239327C5EDb3A432268e5831")
+    weth = project.USDC.at("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1")
+    pool = project.USDC.at("0xC6962004f452bE9203591991D15f6b388e09E8D0")
+    usdt = project.USDC.at("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9")
+    user = "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D"
 
-# def test_set_paloma(contract, compass):
-#     paloma = b'\x02' * 32
-#     contract.set_paloma(sender=compass, data=paloma)
-#     assert contract.paloma() == paloma
+    # print(weth.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
+    # print(usdc.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
+    # print(weth.balanceOf(user))
+    # PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, b'\x00' * 32, path, enhanced, subscription_month, sender=deployer, value=eth_amount)
+    # PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, b'\x00' * 32, path, enhanced, subscription_month, sender=user, value=eth_amount)
+    # assert deployer.balance == balance_before - eth_amount
+    
+    # print(PalomaNodeSale.balance)
+    # print(weth.balanceOf(PalomaNodeSale))
+    # print(usdc.balanceOf(PalomaNodeSale))
+    # print(PalomaNodeSale.balance)
+    # print(weth.balanceOf("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"))
+    # print(usdc.balanceOf("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"))
+    # print(balance_before)
+    # print(deployer.balance)
+    # print(weth.balanceOf(deployer))
+    # print(weth.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
+    # print(usdc.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
+    # print(weth.balanceOf(user))
 
-# def test_set_paloma_invalid_sender(contract, deployer):
-#     paloma = b'\x02' * 32
-#     with pytest.raises(Exception):
-#         contract.set_paloma(sender=deployer, data=paloma)
+    path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x00\x64\xFd\x08\x6b\xC7\xCD\x5C\x48\x1D\xCC\x9C\x85\xeb\xE4\x78\xA1\xC0\xb6\x9F\xCb\xb9'
+    # pay for token
+    usdt.approve(PalomaNodeSale, 106000000, sender=user)
 
-# def test_set_processing_fee(contract, admin):
-#     new_processing_fee = 200
-#     new_subscription_fee = 300
-#     contract.set_processing_fee(new_processing_fee, new_subscription_fee, sender=admin)
-#     assert contract.processing_fee() == new_processing_fee
-#     assert contract.subscription_fee() == new_subscription_fee
-
-# def test_set_processing_fee_non_admin(contract, deployer):
-#     new_processing_fee = 200
-#     new_subscription_fee = 300
-#     with pytest.raises(Exception):
-#         contract.set_processing_fee(new_processing_fee, new_subscription_fee, sender=deployer)
-
-# def test_set_referral_percentages(contract, admin):
-#     new_discount_percentage = 600
-#     new_reward_percentage = 700
-#     contract.set_referral_percentages(new_discount_percentage, new_reward_percentage, sender=admin)
-#     assert contract.referral_discount_percentage() == new_discount_percentage
-#     assert contract.referral_reward_percentage() == new_reward_percentage
-
-# def test_set_referral_percentages_non_admin(contract, deployer):
-#     new_discount_percentage = 600
-#     new_reward_percentage = 700
-#     with pytest.raises(Exception):
-#         contract.set_referral_percentages(new_discount_percentage, new_reward_percentage, sender=deployer)
-
-# def test_set_start_end_timestamp(contract, admin):
-#     new_start_timestamp = 1000
-#     new_end_timestamp = 2000
-#     contract.set_start_end_timestamp(new_start_timestamp, new_end_timestamp, sender=admin)
-#     assert contract.start_timestamp() == new_start_timestamp
-#     assert contract.end_timestamp() == new_end_timestamp
-
-# def test_set_start_end_timestamp_non_admin(contract, deployer):
-#     new_start_timestamp = 1000
-#     new_end_timestamp = 2000
-#     with pytest.raises(Exception):
-#         contract.set_start_end_timestamp(new_start_timestamp, new_end_timestamp, sender=deployer)
-
-# def test_update_admin(contract, admin):
-#     new_admin = accounts[11]
-#     contract.update_admin(new_admin, sender=admin)
-#     assert contract.admin() == new_admin
-
-# def test_update_admin_non_admin(contract, deployer):
-#     new_admin = accounts[11]
-#     with pytest.raises(Exception):
-#         contract.update_admin(new_admin, sender=deployer)
-
-# def test_update_compass(contract, compass):
-#     new_compass = accounts[12]
-#     contract.update_compass(new_compass, sender=compass)
-#     assert contract.compass() == new_compass
-
-# def test_update_compass_invalid_sender(contract, deployer):
-#     new_compass = accounts[12]
-#     with pytest.raises(Exception):
-#         contract.update_compass(new_compass, sender=deployer)
+    print(usdt.balanceOf(user))
+    print(usdc.balanceOf(PalomaNodeSale))
+    print(usdt.balanceOf(PalomaNodeSale))
+    print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
+    print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
+    print(usdc.balanceOf(recipient))
+    PalomaNodeSale.pay_for_token("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
+    print(usdt.balanceOf(user))
+    print(usdc.balanceOf(PalomaNodeSale))
+    print(usdt.balanceOf(PalomaNodeSale))
+    print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
+    print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
+    print(usdc.balanceOf(recipient))
+    assert PalomaNodeSale.promo_codes(b'\x01' * 32).active == True

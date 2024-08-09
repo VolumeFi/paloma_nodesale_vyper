@@ -2,7 +2,7 @@
 #pragma optimize gas
 #pragma evm-version cancun
 """
-@title      Paloma Node Sale NFT ERC721 Contract
+@title      Paloma Node Sale Contract
 @license    Apache 2.0
 @author     Volume.finance
 """
@@ -110,7 +110,7 @@ subscription_fee: public(uint256)
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 
-nonce: public(HashMap[uint256, uint256])
+nonces: public(HashMap[uint256, uint256])
 subscription: public(HashMap[address, uint256])
 activates: public(HashMap[address, bytes32])
 promo_codes: public(HashMap[bytes32, PromoCode])
@@ -171,28 +171,28 @@ def update_whitelist_amounts(_to_whitelist: address, _amount: uint256):
 def node_sale(_to: address, _count: uint256, _nonce: uint256):
     self._paloma_check()
 
-    assert self.nonce[_nonce] == 0, "Already emited"
+    assert self.nonces[_nonce] == 0, "Already emited"
     _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount)
-    self.nonce[_nonce] = block.timestamp
+    self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
 @external
 def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     self._paloma_check()
 
-    assert self.nonce[_nonce] == 0, "Already emited"
+    assert self.nonces[_nonce] == 0, "Already emited"
     _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
     _whitelist_amounts: uint256 = self.whitelist_amounts[_to]
-    assert _whitelist_amounts > _count, "Invalid whitelist amount"
+    assert _whitelist_amounts >= _count, "Invalid whitelist amount"
 
     self.whitelist_amounts[_to] = unsafe_sub(_whitelist_amounts, _count)
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount)
-    self.nonce[_nonce] = block.timestamp
+    self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
 @payable
@@ -202,12 +202,12 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     assert block.timestamp < self.end_timestamp, "!end"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
-    assert _subscription_month > 0, "Invalid fee months"
     _processing_fee: uint256 = self.processing_fee
     _amount_out: uint256 = _total_cost + _processing_fee
 
     _enhanced_fee: uint256 = 0
     if _enhanced:
+        assert _subscription_month > 0, "Invalid fee months"
         _enhanced_fee = self.subscription_fee * _subscription_month
         _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
@@ -233,9 +233,9 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
 
     log Purchased(msg.sender, empty(address), _total_cost, _processing_fee, _enhanced_fee, _estimated_node_count, _promo_code)
 
-    _dust: uint256 = unsafe_sub(msg.value, _amount_in)
-    if _dust > 0:
-        send(msg.sender, _dust)
+    # _dust: uint256 = msg.value - _amount_in
+    # if _dust > 0:
+        # send(msg.sender, self.balance)
 
 @external
 def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
@@ -244,7 +244,6 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _estimated_amount_in, default_return_value=True), "Approve failed"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
-    assert _subscription_month > 0, "Invalid fee months"
     assert extcall ERC20(_token_in).transferFrom(msg.sender, self, _estimated_amount_in, default_return_value=True), "Send Reward Failed"
 
     _processing_fee: uint256 = self.processing_fee
@@ -252,6 +251,7 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
 
     _enhanced_fee: uint256 = 0
     if _enhanced:
+        assert _subscription_month > 0, "Invalid fee months"
         _enhanced_fee = self.subscription_fee * _subscription_month
         _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
@@ -363,3 +363,8 @@ def _admin_check():
 def _paloma_check():
     assert msg.sender == self.compass, "Not compass"
     assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
+
+@external
+@payable
+def __default__():
+    pass
