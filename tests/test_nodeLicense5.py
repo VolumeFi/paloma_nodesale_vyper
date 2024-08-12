@@ -37,7 +37,8 @@ def PalomaNodeSale(deployer, compass, project):
         5000000,
         50000000,
         500,
-        1500
+        1500,
+        100
     )
     funcSig = function_signature("set_paloma()")
     addPayload = encode(["bytes32"], [b'123456'])
@@ -51,7 +52,8 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     assert PalomaNodeSale.compass() == compass
     assert PalomaNodeSale.funds_receiver() == "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"
     assert PalomaNodeSale.fee_receiver() == "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
-    
+    assert PalomaNodeSale.slippage_fee_percentage() == 100
+
     # activate_wallet
     paloma_wcc = encode(["bytes32"], [b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd4\x5d\x0b\xee\xea\xc4\xc2\xf2\x36\x22\x3a\x70\x27\x80\x76\x6e\xb2\x80\x03\x9c'])
     PalomaNodeSale.activate_wallet(paloma_wcc, sender=deployer)
@@ -141,11 +143,13 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     # set referral percentages
     new_discount_percentage = 500
     new_reward_percentage = 1500
-    PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, sender=deployer)
+    new_slippage_percentage = 100
+    PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, new_slippage_percentage, sender=deployer)
     assert PalomaNodeSale.referral_discount_percentage() == new_discount_percentage
     assert PalomaNodeSale.referral_reward_percentage() == new_reward_percentage
+    assert PalomaNodeSale.slippage_fee_percentage() == new_slippage_percentage
     with ape.reverts():
-        PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, sender=recipient)
+        PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, new_slippage_percentage, sender=recipient)
 
     # set start end timestamp
     new_start_timestamp = 1722988800

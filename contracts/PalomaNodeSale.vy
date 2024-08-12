@@ -75,12 +75,14 @@ event Purchased:
     fund_usd_amount: uint256
     fee_usd_amount: uint256
     subscription_usd_amount: uint256
+    slippage_fee_amount: uint256
     node_count: uint256
     promo_code: bytes32
 
 event ReferralRewardPercentagesChanged:
     referral_discount_percentage: uint256
     referral_reward_percentage: uint256
+    slippage_fee_percentage: uint256
 
 event SetPaloma:
     paloma: bytes32
@@ -116,6 +118,7 @@ start_timestamp: public(uint256)
 end_timestamp: public(uint256)
 processing_fee: public(uint256)
 subscription_fee: public(uint256)
+slippage_fee_percentage: public(uint256)
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 
@@ -127,7 +130,7 @@ whitelist_amounts: public(HashMap[address, uint256])
 claimable: public(HashMap[address, uint256])
 
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256, _slippage_fee_percentage: uint256):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
@@ -138,6 +141,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     self.subscription_fee = _subscription_fee
     self.referral_discount_percentage = _referral_discount_percentage
     self.referral_reward_percentage = _referral_reward_percentage
+    self.slippage_fee_percentage = _slippage_fee_percentage
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
     WETH9 = staticcall ISwapRouter02(_swap_router).WETH9()
@@ -147,7 +151,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log FeeReceiverChanged(empty(address), _fee_receiver)
     log FeeChanged(_admin, _processing_fee, _subscription_fee)
     log StartEndTimestampChanged(_start_timestamp, _end_timestamp)
-    log ReferralRewardPercentagesChanged(_referral_discount_percentage, _referral_reward_percentage)
+    log ReferralRewardPercentagesChanged(_referral_discount_percentage, _referral_reward_percentage, _slippage_fee_percentage)
 
 @external
 def activate_wallet(_paloma: bytes32):
@@ -214,7 +218,12 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
     _processing_fee: uint256 = self.processing_fee
+    _slippage_fee_percent: uint256 = self.slippage_fee_percentage
     _amount_out: uint256 = _total_cost + _processing_fee
+    _slippage_fee: uint256 = 0
+    if _slippage_fee_percent > 0:
+        _slippage_fee = unsafe_div(unsafe_mul(_total_cost, _slippage_fee_percent), 10000)
+        _amount_out = _amount_out + _slippage_fee
 
     _enhanced_fee: uint256 = 0
     if _enhanced:
@@ -240,12 +249,11 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
         _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
         if _referral_reward > 0:
             self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
-            # assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
-    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee + _slippage_fee, default_return_value=True), "Processing Fee Failed"
 
-    log Purchased(msg.sender, empty(address), _total_cost, _processing_fee, _enhanced_fee, _estimated_node_count, _promo_code)
+    log Purchased(msg.sender, empty(address), _total_cost, _processing_fee, _enhanced_fee, _slippage_fee, _estimated_node_count, _promo_code)
 
     _dust: uint256 = unsafe_sub(msg.value, _amount_in)
     if _dust > 0:
@@ -263,7 +271,12 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     assert extcall ERC20(_token_in).transferFrom(msg.sender, self, _estimated_amount_in, default_return_value=True), "Send Reward Failed"
 
     _processing_fee: uint256 = self.processing_fee
+    _slippage_fee_percent: uint256 = self.slippage_fee_percentage
     _amount_out: uint256 = _total_cost + _processing_fee
+    _slippage_fee: uint256 = 0
+    if _slippage_fee_percent > 0:
+        _slippage_fee = unsafe_div(unsafe_mul(_total_cost, _slippage_fee_percent), 10000)
+        _amount_out = _amount_out + _slippage_fee
 
     _enhanced_fee: uint256 = 0
     if _enhanced:
@@ -286,13 +299,12 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     if _promo_code_info.active:
          _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
          if _referral_reward > 0:
-            # assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
             self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
-    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee + _slippage_fee, default_return_value=True), "Processing Fee Failed"
 
-    log Purchased(msg.sender, _token_in, _total_cost, _processing_fee, _enhanced_fee, _estimated_node_count, _promo_code)
+    log Purchased(msg.sender, _token_in, _total_cost, _processing_fee, _enhanced_fee, _slippage_fee, _estimated_node_count, _promo_code)
 
     _dust: uint256 = unsafe_sub(_estimated_amount_in, _amount_in)
     if _dust > 0:
@@ -342,16 +354,20 @@ def set_processing_fee(_new_processing_fee: uint256, _new_subscription_fee: uint
 def set_referral_percentages(
     _new_referral_discount_percentage: uint256,
     _new_referral_reward_percentage: uint256,
+    _new_slippage_fee_percentage: uint256,
 ):
     self._admin_check()
 
     assert _new_referral_discount_percentage <= 9900, "Discount p exceed"
     assert _new_referral_reward_percentage <= 9900, "Reward p exceed"
+    assert _new_slippage_fee_percentage <= 9900, "Slippage p exceed"
     self.referral_discount_percentage = _new_referral_discount_percentage
     self.referral_reward_percentage = _new_referral_reward_percentage
+    self.slippage_fee_percentage = _new_slippage_fee_percentage
     log ReferralRewardPercentagesChanged(
         _new_referral_discount_percentage,
         _new_referral_reward_percentage,
+        _new_slippage_fee_percentage,
     )
 
 @external
