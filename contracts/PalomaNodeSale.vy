@@ -38,6 +38,10 @@ event Activated:
     sender: indexed(address)
     paloma: bytes32
 
+event Claimed:
+    recipient: indexed(address)
+    amount: uint256
+
 event FeeReceiverChanged:
     admin: indexed(address)
     new_fee_receiver: address
@@ -120,6 +124,7 @@ subscription: public(HashMap[address, uint256])
 activates: public(HashMap[address, bytes32])
 promo_codes: public(HashMap[bytes32, PromoCode])
 whitelist_amounts: public(HashMap[address, uint256])
+claimable: public(HashMap[address, uint256])
 
 @deploy
 def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
@@ -234,7 +239,8 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     if _promo_code_info.active:
         _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
         if _referral_reward > 0:
-            assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
+            self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
+            # assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee, default_return_value=True), "Processing Fee Failed"
@@ -280,7 +286,8 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     if _promo_code_info.active:
          _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
          if _referral_reward > 0:
-            assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
+            # assert extcall ERC20(REWARD_TOKEN).transfer(_promo_code_info.recipient, _referral_reward, default_return_value=True), "Processing Reward Failed"
+            self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee, default_return_value=True), "Processing Fee Failed"
@@ -290,6 +297,14 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     _dust: uint256 = unsafe_sub(_estimated_amount_in, _amount_in)
     if _dust > 0:
         assert extcall ERC20(_token_in).transfer(msg.sender, _dust, default_return_value=True), "Processing Dust Failed"
+
+@external
+def claim():
+    _claimable: uint256 = self.claimable[msg.sender]
+    assert _claimable > 0, "No claimable"
+    self.claimable[msg.sender] = 0
+    assert extcall ERC20(REWARD_TOKEN).transfer(msg.sender, _claimable, default_return_value=True), "Claim Failed"
+    log Claimed(msg.sender, _claimable)
 
 @external
 def set_fee_receiver(_new_fee_receiver: address):
