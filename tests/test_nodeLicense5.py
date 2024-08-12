@@ -170,50 +170,36 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     promo_code = b'\x01' * 32
     
     path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x01\xf4\x82\xaf\x49\x44\x7d\x8a\x07\xe3\xbd\x95\xbd\x0d\x56\xf3\x52\x41\x52\x3f\xba\xb1'
-    enhanced = False
-    subscription_month = 0
-    balance_before = deployer.balance
+    enhanced = True
+    subscription_month = 24
+
     usdc = project.USDC.at("0xaf88d065e77c8cC2239327C5EDb3A432268e5831")
     weth = project.USDC.at("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1")
     pool = project.USDC.at("0xC6962004f452bE9203591991D15f6b388e09E8D0")
     usdt = project.USDC.at("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9")
     user = "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D"
 
-    # print(weth.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
-    # print(usdc.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
-    # print(weth.balanceOf(user))
-    # PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, b'\x00' * 32, path, enhanced, subscription_month, sender=deployer, value=eth_amount)
-    # PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, b'\x00' * 32, path, enhanced, subscription_month, sender=user, value=eth_amount)
-    # assert deployer.balance == balance_before - eth_amount
-    
-    # print(PalomaNodeSale.balance)
-    # print(weth.balanceOf(PalomaNodeSale))
-    # print(usdc.balanceOf(PalomaNodeSale))
-    # print(PalomaNodeSale.balance)
-    # print(weth.balanceOf("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"))
-    # print(usdc.balanceOf("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"))
-    # print(balance_before)
-    # print(deployer.balance)
-    # print(weth.balanceOf(deployer))
-    # print(weth.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
-    # print(usdc.balanceOf("0xC6962004f452bE9203591991D15f6b388e09E8D0"))
-    # print(weth.balanceOf(user))
+    print(weth.balanceOf(deployer))
+    print(deployer.balance)
+    PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, b'\x00' * 32, path, enhanced, subscription_month, sender=deployer, value=eth_amount)
+    print(weth.balanceOf(deployer))
+    print(deployer.balance)
 
     path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x00\x64\xFd\x08\x6b\xC7\xCD\x5C\x48\x1D\xCC\x9C\x85\xeb\xE4\x78\xA1\xC0\xb6\x9F\xCb\xb9'
     # pay for token
     usdt.approve(PalomaNodeSale, 106000000, sender=user)
 
-    print(usdt.balanceOf(user))
-    print(usdc.balanceOf(PalomaNodeSale))
-    print(usdt.balanceOf(PalomaNodeSale))
-    print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
-    print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
-    print(usdc.balanceOf(recipient))
+    # print(usdt.balanceOf(user))
+    # print(usdc.balanceOf(PalomaNodeSale))
+    # print(usdt.balanceOf(PalomaNodeSale))
+    # print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
+    # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
+    # print(usdc.balanceOf(recipient))
     PalomaNodeSale.pay_for_token("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
-    print(usdt.balanceOf(user))
-    print(usdc.balanceOf(PalomaNodeSale))
-    print(usdt.balanceOf(PalomaNodeSale))
-    print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
-    print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
-    print(usdc.balanceOf(recipient))
+    # print(usdt.balanceOf(user))
+    # print(usdc.balanceOf(PalomaNodeSale))
+    # print(usdt.balanceOf(PalomaNodeSale))
+    # print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
+    # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
+    # print(usdc.balanceOf(recipient))
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).active == True

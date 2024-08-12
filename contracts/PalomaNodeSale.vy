@@ -10,6 +10,10 @@
 interface COMPASS:
     def emit_nodesale_event(_buyer: address, _paloma: bytes32, _node_count: uint256, _grain_amount: uint256): nonpayable
 
+interface WrappedEth:
+    def deposit(): payable
+    def withdraw(amount: uint256): nonpayable
+    
 interface ERC20:
     def approve(_spender: address, _value: uint256) -> bool: nonpayable
     def transfer(_to: address, _value: uint256) -> bool: nonpayable
@@ -197,6 +201,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
 
 @payable
 @external
+@nonreentrant
 def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
@@ -220,7 +225,9 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     )
 
     # Execute the swap
-    _amount_in: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params, value=msg.value)
+    extcall WrappedEth(WETH9).deposit(value=msg.value)
+    assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value, default_return_value=True), "Approve failed"
+    _amount_in: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
     _referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]
     if _promo_code_info.active:
@@ -233,11 +240,13 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
 
     log Purchased(msg.sender, empty(address), _total_cost, _processing_fee, _enhanced_fee, _estimated_node_count, _promo_code)
 
-    # _dust: uint256 = msg.value - _amount_in
-    # if _dust > 0:
-        # send(msg.sender, self.balance)
+    _dust: uint256 = unsafe_sub(msg.value, _amount_in)
+    if _dust > 0:
+        extcall WrappedEth(WETH9).withdraw(_dust)
+        send(msg.sender, _dust)
 
 @external
+@nonreentrant
 def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
