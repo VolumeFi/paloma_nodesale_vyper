@@ -203,3 +203,7 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
     # print(usdc.balanceOf(recipient))
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).active == True
+    assert PalomaNodeSale.promo_codes(b'\x01' * 32).recipient == recipient
+    print(usdc.balanceOf(recipient))
+    PalomaNodeSale.claim(sender=recipient)
+    print(usdc.balanceOf(recipient))
