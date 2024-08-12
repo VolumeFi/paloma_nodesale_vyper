@@ -50,7 +50,8 @@ event NodeSold:
     buyer: indexed(address)
     paloma: bytes32
     node_count: uint256
-    grain_amount: uint256 
+    grain_amount: uint256
+    nonce: uint256
 
 event FeeChanged:
     admin: indexed(address)
@@ -179,7 +180,7 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256):
     _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
-    log NodeSold(_to, _paloma, _count, _grain_amount)
+    log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
@@ -195,7 +196,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
 
     self.whitelist_amounts[_to] = unsafe_sub(_whitelist_amounts, _count)
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
-    log NodeSold(_to, _paloma, _count, _grain_amount)
+    log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
