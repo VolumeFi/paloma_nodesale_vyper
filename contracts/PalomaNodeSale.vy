@@ -299,6 +299,7 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         assert extcall ERC20(_token_in).transfer(msg.sender, _dust, default_return_value=True), "Processing Dust Failed"
 
 @external
+@nonreentrant
 def claim():
     _claimable: uint256 = self.claimable[msg.sender]
     assert _claimable > 0, "No claimable"
