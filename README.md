@@ -1,84 +1,79 @@
-# Paloma Node Sale Contract
+# PalomaNodeSale
 
-This Vyper contract facilitates the sale of nodes in the Paloma network, allowing users to purchase nodes using either ETH or ERC20 tokens. It includes features such as referral rewards, fund withdrawal by the admin, and time-bound sale periods.
+PalomaNodeSale is a smart contract written in Vyper for managing node sales. It includes features for activating wallets, creating and removing promo codes, updating whitelist amounts, and handling node sales and redemptions.
 
-## Features
+## Contract Overview
 
-- **Token Swap**: Users can pay for nodes using any ERC20 token or ETH, which is then swapped to the contract's reward token using a specified swap router.
-- **Referral Program**: The contract supports a referral program where users can earn rewards for referring others to purchase nodes.
-- **Admin Controls**: Admins have the ability to update contract parameters such as the compass address, admin address, funds receiver, referral percentages, and sale start/end timestamps.
-- **Event Logging**: The contract emits events for significant actions such as updates to the compass or admin, changes in referral percentages, node purchases, and fund withdrawals.
+The PalomaNodeSale contract is designed to facilitate the sale and management of nodes. It provides functionalities for:
+- Activating wallets
+- Creating and removing promo codes
+- Updating whitelist amounts
+- Handling node sales and redemptions
 
-## Contract Events
+## Contract Functions
 
-- `SetPaloma`
-- `UpdateCompass`
-- `UpdateAdmin`
-- `RewardClaimed`
-- `ReferralRewardPercentagesChanged`
-- `StartEndTimestampChanged`
-- `RefundOccurred`
-- `ReferralReward`
-- `FundsWithdrawn`
-- `FundsReceiverChanged`
-- `Purchased`
+### `__init__`
+Initializes the contract with the provided parameters.
 
-## Interfaces
+### `activate_wallet(_paloma: bytes32)`
+Activates a wallet for node sales. This function is typically called by an admin to enable a wallet to participate in node sales.
 
-- `ISwapRouter02`: Interface for the Uniswap V2 Router used for token swaps.
-- `IWETH`: Interface for wrapping and unwrapping ETH.
-- `ERC20`: Standard ERC20 interface for token interactions.
+### `create_promo_code(_promo_code: bytes32, _recipient: address)`
+Creates a new promo code with a specified recipient. This function allows the admin to generate promo codes that can be used to get discounts on node purchases.
 
-## Public Variables
+### `remove_promo_code(_promo_code: bytes32)`
+Removes an existing promo code. This function allows the admin to invalidate a promo code that is no longer needed or has been misused.
 
-- `REWARD_TOKEN`, `SWAP_ROUTER_02`, `WETH9`: Addresses of the reward token, swap router, and WETH contract, respectively.
-- `paloma`, `compass`, `admin`, `funds_receiver`: Addresses for contract control and fund management.
-- `referral_discount_percentage`, `referral_reward_percentage`: Percentages for the referral program.
-- `start_timestamp`, `end_timestamp`: Timestamps defining the sale period.
+### `update_whitelist_amounts(_to_whitelist: address, _amount: uint256)`
+Updates the whitelist amount for a specific address. This function is used to set or update the amount of nodes a particular address is allowed to purchase.
 
-## Functions
+### `node_sale(_to: address, _count: uint256, _nonce: uint256)`
+Handles the sale of a node. This function processes the sale and updates the state to reflect the purchase.
 
-### Admin Functions
+### `redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256)`
+Handles the redemption of a node from the whitelist. This function allows a user to redeem their purchased node from the whitelist.
 
-- `update_compass`, `update_admin`, `set_paloma`, `set_funds_receiver`, `set_referral_percentages`, `set_start_end_timestamp`: Functions for updating contract parameters.
+### `pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256)`
+Handles payment for nodes using ETH. This function processes the payment and updates the state to reflect the purchase.
 
-### User Functions
+### `pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256)`
+Handles payment for nodes using a specified token. This function processes the payment and updates the state to reflect the purchase.
 
-- `claim_referral_reward`, `add_referral_reward`, `refund`, `pay_for_token`, `pay_for_eth`: Functions for users to interact with the contract, including purchasing nodes and claiming referral rewards.
+### `claim()`
+Allows users to claim their rewards. This function transfers the claimable amount to the user.
 
-### Utility Functions
+### `set_fee_receiver(_new_fee_receiver: address)`
+Sets a new fee receiver. This function allows the admin to update the address that receives the fees.
 
-- `_paloma_check`, `_fund_receiver_check`, `_admin_check`: Internal functions for access control.
+### `set_funds_receiver(_new_funds_receiver: address)`
+Sets a new funds receiver. This function allows the admin to update the address that receives the funds.
 
-## Deployment
+### `set_paloma(_new_paloma: bytes32)`
+Sets a new Paloma identifier. This function allows the admin to update the Paloma identifier.
 
-The contract is deployed with initial parameters for the compass address, swap router, reward token, admin address, funds receiver, and sale start/end timestamps.
+### `set_processing_fee(_new_processing_fee: uint256, _new_subscription_fee: uint256)`
+Sets new processing and subscription fees. This function allows the admin to update the fees.
+
+### `set_referral_percentages(_new_referral_discount_percentage: uint256, _new_referral_reward_percentage: uint256, _new_slippage_fee_percentage: uint256)`
+Sets new referral and slippage fee percentages. This function allows the admin to update the percentages.
+
+### `set_start_end_timestamp(_new_start_timestamp: uint256, _new_end_timestamp: uint256)`
+Sets new start and end timestamps. This function allows the admin to update the sale period.
+
+### `update_admin(_new_admin: address)`
+Updates the admin address. This function allows the current admin to transfer admin rights to a new address.
+
+### `update_compass(_new_compass: address)`
+Updates the compass address. This function allows the admin to update the compass contract address.
+
+### `__default__()`
+Fallback function to accept ETH.
 
 ## Usage
 
-To interact with the contract, users can call the `pay_for_token` or `pay_for_eth` functions to purchase nodes. Referral rewards can be claimed through the `claim_referral_reward` function. Admins can update contract parameters and withdraw funds using their respective functions.
+### Deploying the Contract
 
-## Development
+To deploy the contract, use the `ape` CLI or your preferred deployment tool. Ensure you have the necessary accounts and parameters set up.
 
-This contract is written in Vyper and requires a Vyper compiler for deployment. It is recommended to test thoroughly before deploying on the main network.
-
-## License
-
-This project is licensed under the Apache License 2.0.
-
-# Paloma Node Sale NFT
-
-## Overview
-
-This project contains the smart contract for a Node Sale NFT using Vyper. The contract is designed for the Paloma blockchain and manages the sale and ownership of NFTs representing nodes in the network.
-
-## Features
-
-- **NFT Creation**: Allows the creation of unique NFTs representing nodes.
-- **Ownership Management**: Tracks the ownership of each NFT.
-- **Sale Mechanism**: Facilitates the sale of nodes through NFT transactions.
-
-## Requirements
-
-- Vyper: The smart contract is written in Vyper and requires the Vyper compiler for deployment.
-- Ethereum Virtual Machine (EVM) Compatible Blockchain: Designed for deployment on EVM-compatible blockchains, specifically the Paloma blockchain.
+```bash
+ape run deploy
