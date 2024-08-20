@@ -85,22 +85,6 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     with ape.reverts():
         PalomaNodeSale.update_whitelist_amounts(whitelistacc, amount, sender=whitelistacc)
 
-    # node_sale
-    count = 10
-    nonce_val = 1
-    PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=deployer)
-    func_sig = function_signature("node_sale(address,uint256,uint256)")
-    enc_abi = encode(["(address,uint256,uint256)"], [("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", count, nonce_val)])
-    add_payload = encode(["bytes32"], [b'123456'])
-    with ape.reverts():
-        PalomaNodeSale.node_sale(deployer, count, nonce_val, sender=compass)
-    payload = func_sig + enc_abi + add_payload
-    PalomaNodeSale(sender=compass, data=payload)
-    assert PalomaNodeSale.nonces(1) > 0
-    assert PalomaNodeSale.nonces(2) == 0
-    with ape.reverts():
-        PalomaNodeSale(sender=compass, data=payload)
-
     # redeem_from_whitelist
     count = 1
     nonce_val = 2
@@ -208,6 +192,34 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     # print(usdc.balanceOf(recipient))
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).active == True
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).recipient == recipient
+    print(usdc.balanceOf(recipient))
+    with ape.reverts():
+        PalomaNodeSale.claim(sender=recipient)
+        print(usdc.balanceOf(recipient))
+
+    # refund pending amount
+    print(PalomaNodeSale.pendingRecipient(user))
+    print(PalomaNodeSale.pending(user, recipient))
+    # PalomaNodeSale.refund_pending_amount(user, sender=new_admin)
+    # print(PalomaNodeSale.pendingRecipient(user))
+    # print(PalomaNodeSale.pending(user, recipient))
+
+    # node_sale
+    count = 10
+    nonce_val = 1
+    PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=user)
+    func_sig = function_signature("node_sale(address,uint256,uint256)")
+    enc_abi = encode(["(address,uint256,uint256)"], [(user, count, nonce_val)])
+    add_payload = encode(["bytes32"], [b'123456'])
+    with ape.reverts():
+        PalomaNodeSale.node_sale(user, count, nonce_val, sender=compass)
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
+    assert PalomaNodeSale.nonces(1) > 0
+    assert PalomaNodeSale.nonces(2) > 0
+    with ape.reverts():
+        PalomaNodeSale(sender=compass, data=payload)
+    
     print(usdc.balanceOf(recipient))
     PalomaNodeSale.claim(sender=recipient)
     print(usdc.balanceOf(recipient))

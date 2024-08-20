@@ -12,7 +12,7 @@ def main():
     # ARB
     with networks.parse_network_choice("arbitrum:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = "0x0E7039B63C57cDF92A22F4B78B04CAf125522e56"
+        compass = "0x9D352C4a98d9C1bBede3441740aD88018aF347F3"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"     # USDC
         admin = "0x2175e091176F43eD55313e4Bc31FE4E94051A6fE"            # Dev's address, should be updated once set all initial variables "0xEF27bC86dd48152C00c21130c0dfb5C0223D98f6"
