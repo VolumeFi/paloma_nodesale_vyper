@@ -313,20 +313,23 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
 
-    _params: ExactOutputParams = ExactOutputParams(
-        path=_path,
-        recipient=self,
-        amountOut=_amount_out,
-        amountInMaximum=_estimated_amount_in
-    )
+    _amount_in: uint256 = _estimated_amount_in
 
-    # Execute the swap
-    _amount_in: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
+    if _token_in != REWARD_TOKEN:
+        _params: ExactOutputParams = ExactOutputParams(
+            path=_path,
+            recipient=self,
+            amountOut=_amount_out,
+            amountInMaximum=_estimated_amount_in
+        )
+        # Execute the swap
+        _amount_in = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
+
     _referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]
     if _promo_code_info.active:
-         _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
-         if _referral_reward > 0:
+        _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
+        if _referral_reward > 0:
             # self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
             self.pending[msg.sender][_promo_code_info.recipient] = self.pending[msg.sender][_promo_code_info.recipient] + _referral_reward
             self.pendingRecipient[msg.sender] = _promo_code_info.recipient
