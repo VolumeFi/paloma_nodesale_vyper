@@ -125,7 +125,7 @@ referral_reward_percentage: public(uint256)
 nonces: public(HashMap[uint256, uint256])
 subscription: public(HashMap[address, uint256])
 activates: public(HashMap[address, bytes32])
-activates_history: public(HashMap[address, DynArray[bytes32, 100]])
+paloma_history: public(HashMap[bytes32, bool])
 promo_codes: public(HashMap[bytes32, PromoCode])
 whitelist_amounts: public(HashMap[address, uint256])
 claimable: public(HashMap[address, uint256])
@@ -158,14 +158,9 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
 
 @external
 def activate_wallet(_paloma: bytes32):
-    _activates_history: DynArray[bytes32, 100] = self.activates_history[msg.sender]
-    _len: uint256 = len(_activates_history)
-    for i: uint256 in range(100):
-        if i >= _len:
-            break
-        assert _activates_history[i] != _paloma, "Already activated"
-
+    assert self.paloma_history[_paloma] == False, "Already used"
     self.activates[msg.sender] = _paloma
+    self.paloma_history[_paloma] = True
     log Activated(msg.sender, _paloma)
 
 @external
@@ -217,7 +212,6 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256):
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
-    self.activates_history[_to].append(_paloma)
     self.activates[_to] = empty(bytes32)
 
     _recipient: address = self.pendingRecipient[_to]
@@ -245,7 +239,6 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
-    self.activates_history[_to].append(_paloma)
     self.activates[_to] = empty(bytes32)
 
 @payable

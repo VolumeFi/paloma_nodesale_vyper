@@ -209,7 +209,7 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     # node_sale
     count = 10
     nonce_val = 1
-    PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=user)
+    PalomaNodeSale.activate_wallet(b'\x02' * 32, sender=user)
     func_sig = function_signature("node_sale(address,uint256,uint256)")
     enc_abi = encode(["(address,uint256,uint256)"], [(user, count, nonce_val)])
     add_payload = encode(["bytes32"], [b'123456'])
@@ -219,9 +219,14 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     PalomaNodeSale(sender=compass, data=payload)
     assert PalomaNodeSale.nonces(1) > 0
     assert PalomaNodeSale.nonces(2) > 0
+    assert PalomaNodeSale.activates(user) == b'\x00' * 32
+    assert PalomaNodeSale.activates(to) == b'\x00' * 32
     with ape.reverts():
         PalomaNodeSale(sender=compass, data=payload)
     
     print(usdc.balanceOf(recipient))
     PalomaNodeSale.claim(sender=recipient)
     print(usdc.balanceOf(recipient))
+
+    with ape.reverts():
+        PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=user)
