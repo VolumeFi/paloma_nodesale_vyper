@@ -85,22 +85,6 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     with ape.reverts():
         PalomaNodeSale.update_whitelist_amounts(whitelistacc, amount, sender=whitelistacc)
 
-    # node_sale
-    count = 10
-    nonce_val = 1
-    PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=deployer)
-    func_sig = function_signature("node_sale(address,uint256,uint256)")
-    enc_abi = encode(["(address,uint256,uint256)"], [("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", count, nonce_val)])
-    add_payload = encode(["bytes32"], [b'123456'])
-    with ape.reverts():
-        PalomaNodeSale.node_sale(deployer, count, nonce_val, sender=compass)
-    payload = func_sig + enc_abi + add_payload
-    PalomaNodeSale(sender=compass, data=payload)
-    assert PalomaNodeSale.nonces(1) > 0
-    assert PalomaNodeSale.nonces(2) == 0
-    with ape.reverts():
-        PalomaNodeSale(sender=compass, data=payload)
-
     # redeem_from_whitelist
     count = 1
     nonce_val = 2
@@ -191,7 +175,8 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
 
     path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x00\x64\xFd\x08\x6b\xC7\xCD\x5C\x48\x1D\xCC\x9C\x85\xeb\xE4\x78\xA1\xC0\xb6\x9F\xCb\xb9'
     # pay for token
-    usdt.approve(PalomaNodeSale, 106000000, sender=user)
+    # usdt.approve(PalomaNodeSale, 106000000, sender=user)
+    usdc.approve(PalomaNodeSale, 106000000, sender=user)
 
     # print(usdt.balanceOf(user))
     # print(usdc.balanceOf(PalomaNodeSale))
@@ -199,7 +184,8 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     # print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
     # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
     # print(usdc.balanceOf(recipient))
-    PalomaNodeSale.pay_for_token("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
+    # PalomaNodeSale.pay_for_token("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
+    PalomaNodeSale.pay_for_token("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
     # print(usdt.balanceOf(user))
     # print(usdc.balanceOf(PalomaNodeSale))
     # print(usdt.balanceOf(PalomaNodeSale))
@@ -209,5 +195,38 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).active == True
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).recipient == recipient
     print(usdc.balanceOf(recipient))
+    with ape.reverts():
+        PalomaNodeSale.claim(sender=recipient)
+        print(usdc.balanceOf(recipient))
+
+    # refund pending amount
+    print(PalomaNodeSale.pendingRecipient(user))
+    print(PalomaNodeSale.pending(user, recipient))
+    # PalomaNodeSale.refund_pending_amount(user, sender=new_admin)
+    # print(PalomaNodeSale.pendingRecipient(user))
+    # print(PalomaNodeSale.pending(user, recipient))
+
+    # node_sale
+    count = 10
+    nonce_val = 1
+    PalomaNodeSale.activate_wallet(b'\x02' * 32, sender=user)
+    func_sig = function_signature("node_sale(address,uint256,uint256)")
+    enc_abi = encode(["(address,uint256,uint256)"], [(user, count, nonce_val)])
+    add_payload = encode(["bytes32"], [b'123456'])
+    with ape.reverts():
+        PalomaNodeSale.node_sale(user, count, nonce_val, sender=compass)
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
+    assert PalomaNodeSale.nonces(1) > 0
+    assert PalomaNodeSale.nonces(2) > 0
+    assert PalomaNodeSale.activates(user) == b'\x00' * 32
+    assert PalomaNodeSale.activates(to) == b'\x00' * 32
+    with ape.reverts():
+        PalomaNodeSale(sender=compass, data=payload)
+    
+    print(usdc.balanceOf(recipient))
     PalomaNodeSale.claim(sender=recipient)
     print(usdc.balanceOf(recipient))
+
+    with ape.reverts():
+        PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=user)

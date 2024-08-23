@@ -125,9 +125,12 @@ referral_reward_percentage: public(uint256)
 nonces: public(HashMap[uint256, uint256])
 subscription: public(HashMap[address, uint256])
 activates: public(HashMap[address, bytes32])
+paloma_history: public(HashMap[bytes32, bool])
 promo_codes: public(HashMap[bytes32, PromoCode])
 whitelist_amounts: public(HashMap[address, uint256])
 claimable: public(HashMap[address, uint256])
+pendingRecipient: public(HashMap[address, address])
+pending: public(HashMap[address, HashMap[address, uint256]])
 
 @deploy
 def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256, _slippage_fee_percentage: uint256):
@@ -155,6 +158,8 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
 
 @external
 def activate_wallet(_paloma: bytes32):
+    assert _paloma != empty(bytes32), "Invalid addr"
+    assert self.paloma_history[_paloma] == False, "Already used"
     self.activates[msg.sender] = _paloma
     log Activated(msg.sender, _paloma)
 
@@ -182,24 +187,52 @@ def update_whitelist_amounts(_to_whitelist: address, _amount: uint256):
     log WhitelistAmountUpdated(_to_whitelist, _amount)
 
 @external
+def refund_pending_amount(_to: address):
+    self._admin_check()
+    assert _to != empty(address), "invalid address"
+
+    _recipient: address = self.pendingRecipient[_to]
+    if _recipient != empty(address):
+        _pending: uint256 = self.pending[_to][_recipient]
+        self.pending[_to][_recipient] = 0
+        self.pendingRecipient[_to] = empty(address)
+        assert extcall ERC20(REWARD_TOKEN).transfer(_to, _pending, default_return_value=True), "Processing Refund Failed"
+
+@external
 def node_sale(_to: address, _count: uint256, _nonce: uint256):
     self._paloma_check()
-
+    assert _to != empty(address), "invalid address"
+    assert _count > 0, "invalid count"
+    assert _nonce > 0, "invalid nonce"
     assert self.nonces[_nonce] == 0, "Already emited"
     _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
+    assert self.paloma_history[_paloma] == False, "P Already used"
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
+    self.paloma_history[_paloma] = True
+    self.activates[_to] = empty(bytes32)
+
+    _recipient: address = self.pendingRecipient[_to]
+    if _recipient != empty(address):
+        _pending: uint256 = self.pending[_to][_recipient]
+        self.claimable[_recipient] = unsafe_add(self.claimable[_recipient], _pending)
+        self.pending[_to][_recipient] = 0
+        self.pendingRecipient[_to] = empty(address)
+
 @external
 def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     self._paloma_check()
-
+    assert _to != empty(address), "invalid address"
+    assert _count > 0, "invalid count"
+    assert _nonce > 0, "invalid nonce"
     assert self.nonces[_nonce] == 0, "Already emited"
     _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
+    assert self.paloma_history[_paloma] == False, "P Already used"
     _whitelist_amounts: uint256 = self.whitelist_amounts[_to]
     assert _whitelist_amounts >= _count, "Invalid whitelist amount"
 
@@ -208,6 +241,9 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
+
+    self.paloma_history[_paloma] = True
+    self.activates[_to] = empty(bytes32)
 
 @payable
 @external
@@ -248,7 +284,10 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     if _promo_code_info.active:
         _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
         if _referral_reward > 0:
-            self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
+            # self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
+            self.pending[msg.sender][_promo_code_info.recipient] = self.pending[msg.sender][_promo_code_info.recipient] + _referral_reward
+            self.pendingRecipient[msg.sender] = _promo_code_info.recipient
+
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee + _slippage_fee, default_return_value=True), "Processing Fee Failed"
@@ -285,21 +324,27 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
 
-    _params: ExactOutputParams = ExactOutputParams(
-        path=_path,
-        recipient=self,
-        amountOut=_amount_out,
-        amountInMaximum=_estimated_amount_in
-    )
+    _amount_in: uint256 = _estimated_amount_in
 
-    # Execute the swap
-    _amount_in: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
+    if _token_in != REWARD_TOKEN:
+        _params: ExactOutputParams = ExactOutputParams(
+            path=_path,
+            recipient=self,
+            amountOut=_amount_out,
+            amountInMaximum=_estimated_amount_in
+        )
+        # Execute the swap
+        _amount_in = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
+
     _referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]
     if _promo_code_info.active:
-         _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
-         if _referral_reward > 0:
-            self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
+        _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
+        if _referral_reward > 0:
+            # self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
+            self.pending[msg.sender][_promo_code_info.recipient] = self.pending[msg.sender][_promo_code_info.recipient] + _referral_reward
+            self.pendingRecipient[msg.sender] = _promo_code_info.recipient
+
     _fund_amount: uint256 = _total_cost - _referral_reward
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
     assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee + _slippage_fee, default_return_value=True), "Processing Fee Failed"
