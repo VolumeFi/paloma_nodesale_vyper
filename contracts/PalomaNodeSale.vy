@@ -207,6 +207,7 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256):
     assert self.nonces[_nonce] == 0, "Already emited"
     _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
+    assert self.paloma_history[_paloma] == False, "P Already used"
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
@@ -231,6 +232,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     assert self.nonces[_nonce] == 0, "Already emited"
     _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
+    assert self.paloma_history[_paloma] == False, "P Already used"
     _whitelist_amounts: uint256 = self.whitelist_amounts[_to]
     assert _whitelist_amounts >= _count, "Invalid whitelist amount"
 
