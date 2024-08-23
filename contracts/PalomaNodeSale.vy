@@ -161,7 +161,6 @@ def activate_wallet(_paloma: bytes32):
     assert _paloma != empty(bytes32), "Invalid addr"
     assert self.paloma_history[_paloma] == False, "Already used"
     self.activates[msg.sender] = _paloma
-    self.paloma_history[_paloma] = True
     log Activated(msg.sender, _paloma)
 
 @external
@@ -213,6 +212,7 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256):
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
+    self.paloma_history[_paloma] = True
     self.activates[_to] = empty(bytes32)
 
     _recipient: address = self.pendingRecipient[_to]
@@ -240,6 +240,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
+    self.paloma_history[_paloma] = True
     self.activates[_to] = empty(bytes32)
 
 @payable
