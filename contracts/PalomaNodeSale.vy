@@ -158,6 +158,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
 
 @external
 def activate_wallet(_paloma: bytes32):
+    assert _paloma != empty(bytes32), "Invalid addr"
     assert self.paloma_history[_paloma] == False, "Already used"
     self.activates[msg.sender] = _paloma
     self.paloma_history[_paloma] = True
