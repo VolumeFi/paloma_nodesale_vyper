@@ -230,3 +230,5 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
 
     with ape.reverts():
         PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=user)
+
+    
