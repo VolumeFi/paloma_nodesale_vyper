@@ -92,11 +92,11 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=to)
     PalomaNodeSale.update_whitelist_amounts(to, 10, sender=deployer)
     assert PalomaNodeSale.whitelist_amounts(to) == 10
-    func_sig = function_signature("redeem_from_whitelist(address,uint256,uint256)")
-    enc_abi = encode(["(address,uint256,uint256)"], [(to.address, 1, nonce_val)])
+    func_sig = function_signature("redeem_from_whitelist(address,uint256,uint256,bytes32)")
+    enc_abi = encode(["(address,uint256,uint256,bytes32)"], [(to.address, 1, nonce_val, b'\x01' * 32)])
     add_payload = encode(["bytes32"], [b'123456'])
     with ape.reverts():
-        PalomaNodeSale.redeem_from_whitelist(to, count, nonce_val, sender=compass)
+        PalomaNodeSale.redeem_from_whitelist(to, count, nonce_val, b'\x01' * 32, sender=compass)
     payload = func_sig + enc_abi + add_payload
     PalomaNodeSale(sender=compass, data=payload)
     assert PalomaNodeSale.whitelist_amounts(to) == 9
@@ -210,16 +210,27 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     count = 10
     nonce_val = 1
     PalomaNodeSale.activate_wallet(b'\x02' * 32, sender=user)
-    func_sig = function_signature("node_sale(address,uint256,uint256)")
-    enc_abi = encode(["(address,uint256,uint256)"], [(user, count, nonce_val)])
+    func_sig = function_signature("node_sale(address,uint256,uint256,bytes32)")
+    enc_abi = encode(["(address,uint256,uint256,bytes32)"], [(user, count, nonce_val, b'\x02' * 32)])
     add_payload = encode(["bytes32"], [b'123456'])
     with ape.reverts():
-        PalomaNodeSale.node_sale(user, count, nonce_val, sender=compass)
+        PalomaNodeSale.node_sale(user, count, nonce_val, b'\x02' * 32, sender=compass)
     payload = func_sig + enc_abi + add_payload
     PalomaNodeSale(sender=compass, data=payload)
     assert PalomaNodeSale.nonces(1) > 0
     assert PalomaNodeSale.nonces(2) > 0
+    func_sig = function_signature("update_paloma_history(address)")
+    enc_abi = encode(["address"], [user])
+    with ape.reverts():
+        PalomaNodeSale.update_paloma_history(user, sender=compass)
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
     assert PalomaNodeSale.activates(user) == b'\x00' * 32
+    enc_abi = encode(["address"], ["0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f"])
+    with ape.reverts():
+        PalomaNodeSale.update_paloma_history(to, sender=compass)
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
     assert PalomaNodeSale.activates(to) == b'\x00' * 32
     with ape.reverts():
         PalomaNodeSale(sender=compass, data=payload)
