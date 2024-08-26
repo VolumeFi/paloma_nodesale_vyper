@@ -106,6 +106,9 @@ event WhitelistAmountUpdated:
 event PalomaAddressSynced:
     paloma: bytes32
 
+event PalomaAddressUpdated:
+    paloma: bytes32
+
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
@@ -242,7 +245,7 @@ def update_paloma_history(_to: address):
     assert self.paloma_history[_paloma] == False, "Already used"
 
     self.paloma_history[_paloma] = True
-    log PalomaAddressSynced(_paloma)
+    log PalomaAddressUpdated(_paloma)
     self.activates[_to] = empty(bytes32)
     
     _recipient: address = self.pendingRecipient[_to]
