@@ -103,6 +103,12 @@ event WhitelistAmountUpdated:
     redeemer: indexed(address)
     new_amount: uint256
 
+event PalomaAddressSynced:
+    paloma: bytes32
+
+event PalomaAddressUpdated:
+    paloma: bytes32
+
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
@@ -122,12 +128,12 @@ slippage_fee_percentage: public(uint256)
 referral_discount_percentage: public(uint256)
 referral_reward_percentage: public(uint256)
 
-nonces: public(HashMap[uint256, uint256])
+nonces: public(HashMap[uint256, uint256])               # used in arb only
 subscription: public(HashMap[address, uint256])
 activates: public(HashMap[address, bytes32])
 paloma_history: public(HashMap[bytes32, bool])
 promo_codes: public(HashMap[bytes32, PromoCode])
-whitelist_amounts: public(HashMap[address, uint256])
+whitelist_amounts: public(HashMap[address, uint256])    # used in arb only
 claimable: public(HashMap[address, uint256])
 pendingRecipient: public(HashMap[address, address])
 pending: public(HashMap[address, HashMap[address, uint256]])
@@ -199,40 +205,28 @@ def refund_pending_amount(_to: address):
         assert extcall ERC20(REWARD_TOKEN).transfer(_to, _pending, default_return_value=True), "Processing Refund Failed"
 
 @external
-def node_sale(_to: address, _count: uint256, _nonce: uint256):
+def node_sale(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
     self._paloma_check()
     assert _to != empty(address), "invalid address"
     assert _count > 0, "invalid count"
     assert _nonce > 0, "invalid nonce"
     assert self.nonces[_nonce] == 0, "Already emited"
-    _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
-    assert self.paloma_history[_paloma] == False, "P Already used"
+    
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
-    self.paloma_history[_paloma] = True
-    self.activates[_to] = empty(bytes32)
-
-    _recipient: address = self.pendingRecipient[_to]
-    if _recipient != empty(address):
-        _pending: uint256 = self.pending[_to][_recipient]
-        self.claimable[_recipient] = unsafe_add(self.claimable[_recipient], _pending)
-        self.pending[_to][_recipient] = 0
-        self.pendingRecipient[_to] = empty(address)
-
 @external
-def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
+def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
     self._paloma_check()
     assert _to != empty(address), "invalid address"
     assert _count > 0, "invalid count"
     assert _nonce > 0, "invalid nonce"
     assert self.nonces[_nonce] == 0, "Already emited"
-    _paloma: bytes32 = self.activates[_to]
     assert _paloma != empty(bytes32), "Not activated"
-    assert self.paloma_history[_paloma] == False, "P Already used"
+
     _whitelist_amounts: uint256 = self.whitelist_amounts[_to]
     assert _whitelist_amounts >= _count, "Invalid whitelist amount"
 
@@ -242,8 +236,30 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256):
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
+@external
+def update_paloma_history(_to: address):
+    self._paloma_check()
+    assert _to != empty(address), "invalid address"
+    _paloma: bytes32 = self.activates[_to]
+    assert _paloma != empty(bytes32), "Not activated"
+    assert self.paloma_history[_paloma] == False, "Already used"
+
     self.paloma_history[_paloma] = True
+    log PalomaAddressUpdated(_paloma)
     self.activates[_to] = empty(bytes32)
+    
+    _recipient: address = self.pendingRecipient[_to]
+    if _recipient != empty(address):
+        _pending: uint256 = self.pending[_to][_recipient]
+        self.claimable[_recipient] = unsafe_add(self.claimable[_recipient], _pending)
+        self.pending[_to][_recipient] = 0
+        self.pendingRecipient[_to] = empty(address)
+
+@external
+def sync_paloma_history(_paloma: bytes32):
+    self._paloma_check()
+    self.paloma_history[_paloma] = True
+    log PalomaAddressSynced(_paloma)
 
 @payable
 @external
@@ -284,7 +300,6 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     if _promo_code_info.active:
         _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
         if _referral_reward > 0:
-            # self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
             self.pending[msg.sender][_promo_code_info.recipient] = self.pending[msg.sender][_promo_code_info.recipient] + _referral_reward
             self.pendingRecipient[msg.sender] = _promo_code_info.recipient
 
@@ -341,7 +356,6 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     if _promo_code_info.active:
         _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
         if _referral_reward > 0:
-            # self.claimable[_promo_code_info.recipient] = self.claimable[_promo_code_info.recipient] + _referral_reward
             self.pending[msg.sender][_promo_code_info.recipient] = self.pending[msg.sender][_promo_code_info.recipient] + _referral_reward
             self.pendingRecipient[msg.sender] = _promo_code_info.recipient
 
