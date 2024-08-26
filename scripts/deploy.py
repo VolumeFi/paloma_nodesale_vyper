@@ -12,7 +12,7 @@ def main():
     # ARB DONE
     with networks.parse_network_choice("arbitrum:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = ""
+        compass = "0x82Ed642F4067D55cE884e2823951baDfEdC89e73"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"     # USDC
         admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
@@ -25,7 +25,7 @@ def main():
     # ETH
     with networks.parse_network_choice("ethereum:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = ""
+        compass = "0xDcBd07EEC1D48aE0A14E61dD09BB5AA9c7ed391d"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"     # USDC
         admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
@@ -38,7 +38,7 @@ def main():
     # BSC
     with networks.parse_network_choice("bsc:mainnet") as provider:
         acct = accounts.load("Deployer")
-        compass = ""
+        compass = "0x042Ab4cd2897BA02a420146af8d95f161A4230F1"
         swap_router = "0xB971eF87ede563556b2ED4b1C0b0019111Dd85d2"      # SWAP_ROUTER_02
         reward_token = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"     # USDC
         admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
@@ -51,7 +51,7 @@ def main():
     # MATIC
     with networks.parse_network_choice("polygon:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = ""
+        compass = "0x26f5Da70095d69103ba8b2Ee264A20cD4B590EAb"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"     # USDC
         admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
@@ -64,7 +64,7 @@ def main():
     # BASE DONE
     with networks.parse_network_choice("base:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = "0xF8bacd79456e20e661Dd47FF0137Bbc1929F60c8"
+        compass = "0xD41Cc53d6F483c8C77bb806A2d17c569B216Dfb9"
         swap_router = "0x2626664c2603336E57B271c5C0b26F421741e481"      # SWAP_ROUTER_02
         reward_token = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"     # USDC
         admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
@@ -77,7 +77,7 @@ def main():
     # OP
     with networks.parse_network_choice("optimism:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = ""
+        compass = "0x5a7A8fAf7f73063b4F175E4eF354B6426aF3bd52"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"     # USDC
         admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
