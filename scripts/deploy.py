@@ -45,7 +45,10 @@ def main():
         fund_receiver = "0x58b604EfAC11396A3F11e948A650f26ab5485E3d"    # Fund
         fee_receiver = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
 
-        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, subscription_fee, referral_discount_percentage, referral_reward_percentage, slippage_fee_percentage, sender=acct)
+        processing_fee_1 = 5000000000000000000            # 5 USDC
+        subscription_fee_1 = 50000000000000000000         # 50 USDC per month
+
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee_1, subscription_fee_1, referral_discount_percentage, referral_reward_percentage, slippage_fee_percentage, sender=acct)
         print(palomaNodeSale)
 
     # MATIC
