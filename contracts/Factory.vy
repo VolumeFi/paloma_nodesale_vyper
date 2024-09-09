@@ -111,8 +111,3 @@ def refund(_user_id: uint256, _recipient: address, _token: address, _amount: uin
 def _paloma_check():
     assert msg.sender == self.compass, "Not compass"
     assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
-
-@external
-@payable
-def __default__():
-    pass
