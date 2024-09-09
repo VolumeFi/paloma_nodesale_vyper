@@ -339,7 +339,7 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
 
-    _amount_in: uint256 = _estimated_amount_in
+    _amount_in: uint256 = 0
 
     if _token_in != REWARD_TOKEN:
         _params: ExactOutputParams = ExactOutputParams(
@@ -350,6 +350,9 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         )
         # Execute the swap
         _amount_in = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
+    else:
+        _amount_in = _total_cost + _processing_fee + _enhanced_fee + _slippage_fee
+        assert _estimated_amount_in >= _amount_in, "Insufficient USDC"
 
     _referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]

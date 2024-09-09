@@ -2,6 +2,7 @@ import pytest
 import ape
 from eth_abi import encode
 from web3 import Web3
+from typing import Union
 
 @pytest.fixture(scope="session")
 def deployer(accounts):
@@ -37,7 +38,7 @@ def PalomaNodeSale(deployer, compass, project):
         5000000,
         50000000,
         500,
-        1500,
+        1000,
         100
     )
     funcSig = function_signature("set_paloma()")
@@ -47,7 +48,54 @@ def PalomaNodeSale(deployer, compass, project):
 
     return contract
 
-def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelistacc, accounts, project):
+def get_blueprint_initcode(initcode: Union[str, bytes]):
+    if isinstance(initcode, str):
+        initcode = bytes.fromhex(initcode[2:])
+    initcode = b"\xfe\x71\x00" + initcode
+    initcode = (
+        b"\x61" + len(initcode).to_bytes(2, "big") +
+        b"\x3d\x81\x60\x0a\x3d\x39\xf3" + initcode
+    )
+    return initcode
+
+@pytest.fixture(scope="session")
+def blueprint(deployer, project):
+    # contract = deployer.deploy(
+    #     project.FiatBot,
+    #     PalomaNodeSale
+    # )
+    initcode = get_blueprint_initcode(project.FiatBot.contract_type.deployment_bytecode.bytecode)
+    max_base_fee = 100
+    kw = {
+        'max_fee': max_base_fee,
+        'max_priority_fee': min(int(0.01e9), max_base_fee)}
+    tx = project.provider.network.ecosystem.create_transaction(
+        chain_id=project.provider.chain_id,
+        data=initcode,
+        nonce=deployer.nonce,
+        **kw
+    )
+    receipt = deployer.call(tx)
+    return receipt.contract_address
+
+@pytest.fixture(scope="session")
+def factory(deployer, blueprint, compass, PalomaNodeSale, project):
+    contract = deployer.deploy(
+        project.Factory,
+        blueprint,
+        compass,
+        PalomaNodeSale
+    )
+
+    funcSig = function_signature("set_paloma()")
+    addPayload = encode(["bytes32"], [b'123456'])
+    payload = funcSig + addPayload
+    contract(sender=compass, data=payload)
+
+    return contract
+
+def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass, recipient, whitelistacc, accounts, project):
+    assert factory.blueprint() == blueprint
     assert PalomaNodeSale.admin() == deployer
     assert PalomaNodeSale.compass() == compass
     assert PalomaNodeSale.funds_receiver() == "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"
@@ -93,7 +141,7 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     PalomaNodeSale.update_whitelist_amounts(to, 10, sender=deployer)
     assert PalomaNodeSale.whitelist_amounts(to) == 10
     func_sig = function_signature("redeem_from_whitelist(address,uint256,uint256,bytes32)")
-    enc_abi = encode(["(address,uint256,uint256,bytes32)"], [(to.address, 1, nonce_val, b'\x01' * 32)])
+    enc_abi = encode(["address","uint256","uint256","bytes32"], [to.address, 1, nonce_val, b'\x01' * 32])
     add_payload = encode(["bytes32"], [b'123456'])
     with ape.reverts():
         PalomaNodeSale.redeem_from_whitelist(to, count, nonce_val, b'\x01' * 32, sender=compass)
@@ -185,7 +233,7 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
     # print(usdc.balanceOf(recipient))
     # PalomaNodeSale.pay_for_token("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
-    PalomaNodeSale.pay_for_token("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
+    PalomaNodeSale.pay_for_token("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 105500000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
     # print(usdt.balanceOf(user))
     # print(usdc.balanceOf(PalomaNodeSale))
     # print(usdt.balanceOf(PalomaNodeSale))
@@ -211,7 +259,7 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     nonce_val = 1
     PalomaNodeSale.activate_wallet(b'\x02' * 32, sender=user)
     func_sig = function_signature("node_sale(address,uint256,uint256,bytes32)")
-    enc_abi = encode(["(address,uint256,uint256,bytes32)"], [(user, count, nonce_val, b'\x02' * 32)])
+    enc_abi = encode(["address", "uint256", "uint256", "bytes32"], [user, count, nonce_val, b'\x02' * 32])
     add_payload = encode(["bytes32"], [b'123456'])
     with ape.reverts():
         PalomaNodeSale.node_sale(user, count, nonce_val, b'\x02' * 32, sender=compass)
@@ -242,4 +290,49 @@ def test_paloma_node_sale(PalomaNodeSale, deployer, compass, recipient, whitelis
     with ape.reverts():
         PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=user)
 
+    user_id = 1
+    func_sig = function_signature("create_bot(uint256)")
+    enc_abi = encode(["uint256"], [user_id])
+    payload = func_sig + enc_abi + add_payload
+    with ape.reverts():
+        factory.create_bot(user_id, sender=compass)
+    factory(sender=compass, data=payload)
+    bot = factory.bot_info(user_id)
+    usdc.transfer(bot, 1000000000, sender=user)
+    assert usdc.balanceOf(bot) == 1000000000
+    print(usdc.balanceOf(PalomaNodeSale))
+    with ape.reverts():
+        factory.pay_for_token(user_id, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 55500000, 1, 50000000, b'\x00' * 32, path, False, 0, sender=compass)
+    func_sig = function_signature("pay_for_token(uint256,address,uint256,uint256,uint256,bytes32,bytes,bool,uint256)")
+    enc_abi = encode(["uint256","address","uint256","uint256","uint256","bytes32","bytes","bool","uint256"], [user_id, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 115500000, 1, 50000000, b'\x00' * 32, b'', True, 1])
+    payload = func_sig + enc_abi + add_payload
+    factory(sender=compass, data=payload)
+    assert usdc.balanceOf(bot) == 894500000
+    with ape.reverts():
+        factory.activate_wallet(user_id, b'\x03' * 32, sender=compass)
+    func_sig = function_signature("activate_wallet(uint256,bytes32)")
+    enc_abi = encode(["uint256","bytes32"], [user_id, b'\x03' * 32])
+    payload = func_sig + enc_abi + add_payload
+    factory(sender=compass, data=payload)
+    assert PalomaNodeSale.activates(bot) == b'\x03' * 32
+    with ape.reverts():
+        PalomaNodeSale.node_sale(bot, 1, 3, b'\x03' * 32, sender=compass)
+    func_sig = function_signature("node_sale(address,uint256,uint256,bytes32)")
+    enc_abi = encode(["address","uint256","uint256","bytes32"], [bot, 1, 3, b'\x03' * 32])
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
+    assert PalomaNodeSale.nonces(3) > 0
+    func_sig = function_signature("update_paloma_history(address)")
+    enc_abi = encode(["address"], [bot])
+    payload = func_sig + enc_abi + add_payload
+    PalomaNodeSale(sender=compass, data=payload)
+    assert PalomaNodeSale.activates(bot) == b'\x00' * 32
+    with ape.reverts():
+        factory.refund(user_id, user, usdc, usdc.balanceOf(bot), sender=compass)
+    func_sig = function_signature("refund(uint256,address,address,uint256)")
+    enc_abi = encode(["uint256","address","address","uint256"], [user_id, user, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", usdc.balanceOf(bot)])
+    payload = func_sig + enc_abi + add_payload
+    factory(sender=compass, data=payload)
+    assert usdc.balanceOf(bot) == 0
+    
     
