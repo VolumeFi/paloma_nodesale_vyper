@@ -319,7 +319,6 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
 def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
-    assert _estimated_amount_in > 0, "Invalid est amount"
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _estimated_amount_in, default_return_value=True), "Approve failed"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
@@ -340,7 +339,7 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
 
-    _amount_in: uint256 = _estimated_amount_in
+    _amount_in: uint256 = 0
 
     if _token_in != REWARD_TOKEN:
         _params: ExactOutputParams = ExactOutputParams(
