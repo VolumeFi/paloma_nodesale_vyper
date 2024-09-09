@@ -22,7 +22,7 @@ event ActivatedFiat:
     sender: indexed(address)
     paloma: bytes32
 
-event PurcahsedFiat:
+event PurchasedFiat:
     buyer: indexed(address)
     token_in: address
     fund_usd_amount: uint256
@@ -47,7 +47,7 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     _nodesale: address = staticcall Factory(FACTORY).nodesale()
     assert extcall ERC20(_token_in).approve(_nodesale, _estimated_amount_in, default_return_value=True), "N Approve failed"
     extcall PalomaNodeSale(_nodesale).pay_for_token(_token_in, _estimated_amount_in, _estimated_node_count, _total_cost, _promo_code, _path, _enhanced, _subscription_month)
-    log PurcahsedFiat(self, _token_in, _total_cost, _estimated_node_count, _promo_code)
+    log PurchasedFiat(self, _token_in, _total_cost, _estimated_node_count, _promo_code)
 
 @external
 def activate_wallet(_paloma: bytes32):
