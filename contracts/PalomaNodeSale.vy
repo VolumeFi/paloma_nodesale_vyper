@@ -216,7 +216,7 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
-    # extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
+    extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
 @external
 def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
@@ -234,7 +234,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256, _palom
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
-    # extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
+    extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
 @external
 def update_paloma_history(_to: address):
