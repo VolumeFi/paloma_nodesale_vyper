@@ -216,7 +216,7 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
-    extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
+    # extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
 @external
 def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
@@ -234,7 +234,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256, _palom
     _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
-    extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
+    # extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
 
 @external
 def update_paloma_history(_to: address):
@@ -319,6 +319,7 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
 def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
+    assert _estimated_amount_in > 0, "Invalid est amount"
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _estimated_amount_in, default_return_value=True), "Approve failed"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
@@ -350,6 +351,9 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         )
         # Execute the swap
         _amount_in = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
+    else:
+        _amount_in = _total_cost + _processing_fee + _enhanced_fee + _slippage_fee
+        assert _estimated_amount_in >= _amount_in, "Insufficient USDC"
 
     _referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]
