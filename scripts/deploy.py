@@ -9,7 +9,7 @@ def main():
     referral_reward_percentage = 1000   # 10%
     slippage_fee_percentage = 50        # 0.5%
 
-    # ARB DONE
+    # ARB 
     with networks.parse_network_choice("arbitrum:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
         compass = "0x82Ed642F4067D55cE884e2823951baDfEdC89e73"
@@ -64,18 +64,18 @@ def main():
         palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, subscription_fee, referral_discount_percentage, referral_reward_percentage, slippage_fee_percentage, sender=acct)
         print(palomaNodeSale)
 
-    # # BASE DONE
-    # with networks.parse_network_choice("base:mainnet:alchemy") as provider:
-    #     acct = accounts.load("Deployer")
-    #     compass = "0xF8bacd79456e20e661Dd47FF0137Bbc1929F60c8"
-    #     swap_router = "0x2626664c2603336E57B271c5C0b26F421741e481"      # SWAP_ROUTER_02
-    #     reward_token = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"     # USDC
-    #     admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
-    #     fund_receiver = "0x782376edF93423DF3FB7b1C651D7Ab7303dEA615"    # Fund
-    #     fee_receiver = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
+    # BASE 
+    with networks.parse_network_choice("base:mainnet:alchemy") as provider:
+        acct = accounts.load("Deployer")
+        compass = "0x7cd976c5029FDA0dF0124490d00D7fBa25a64E19"
+        swap_router = "0x2626664c2603336E57B271c5C0b26F421741e481"      # SWAP_ROUTER_02
+        reward_token = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"     # USDC
+        admin = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"            # admin
+        fund_receiver = "0x782376edF93423DF3FB7b1C651D7Ab7303dEA615"    # Fund
+        fee_receiver = "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
 
-    #     palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, subscription_fee, referral_discount_percentage, referral_reward_percentage, slippage_fee_percentage, sender=acct)
-    #     print(palomaNodeSale)
+        palomaNodeSale = project.PalomaNodeSale.deploy(compass, swap_router, reward_token, admin, fund_receiver, fee_receiver, start_timestamp, end_timestamp, processing_fee, subscription_fee, referral_discount_percentage, referral_reward_percentage, slippage_fee_percentage, sender=acct)
+        print(palomaNodeSale)
 
     # OP
     with networks.parse_network_choice("optimism:mainnet:alchemy") as provider:
