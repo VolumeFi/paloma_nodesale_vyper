@@ -34,11 +34,13 @@ def PalomaNodeSale(deployer, compass, project):
         "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294",  # fund_receiver
         "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74",  # fee_receiver
         1722988800,
-        1726876800,
+        1735603200,
         5000000,
         50000000,
+        50,
+        100,
         500,
-        100
+        1000,
     )
     funcSig = function_signature("set_paloma()")
     addPayload = encode(["bytes32"], [b'123456'])
@@ -99,8 +101,10 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     assert PalomaNodeSale.compass() == compass
     assert PalomaNodeSale.funds_receiver() == "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"
     assert PalomaNodeSale.fee_receiver() == "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
-    assert PalomaNodeSale.slippage_fee_percentage() == 500
+    assert PalomaNodeSale.slippage_fee_percentage() == 50
     assert PalomaNodeSale.parent_fee_percentage() == 100
+    assert PalomaNodeSale.default_discount_percentage() == 500
+    assert PalomaNodeSale.default_reward_percentage() == 1000
 
     # activate_wallet
     paloma_wcc = encode(["bytes32"], [b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd4\x5d\x0b\xee\xea\xc4\xc2\xf2\x36\x22\x3a\x70\x27\x80\x76\x6e\xb2\x80\x03\x9c'])
@@ -122,7 +126,7 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     PalomaNodeSale.create_promo_code(parent3_promo_code, accounts[5], parent2_promo_code, referral_discount_percentage, referral_reward_percentage, sender=deployer)
     PalomaNodeSale.create_promo_code(parent4_promo_code, accounts[6], parent3_promo_code, referral_discount_percentage, referral_reward_percentage, sender=deployer)
     assert PalomaNodeSale.promo_codes(promo_code).recipient == recipient
-
+    
     # create_promo_code_non_admin
     with ape.reverts():
         PalomaNodeSale.create_promo_code(promo_code, recipient, empty_promo_code, referral_discount_percentage, referral_reward_percentage, sender=recipient)
@@ -185,18 +189,21 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
 
     # set referral percentages
     new_discount_percentage = 500
-    new_reward_percentage = 1500
+    new_reward_percentage = 1000
+    PalomaNodeSale.set_discount_reward_percentage(new_discount_percentage, new_reward_percentage, sender=deployer)
+    assert PalomaNodeSale.default_discount_percentage() == new_discount_percentage
+    assert PalomaNodeSale.default_reward_percentage() == new_reward_percentage
+    with ape.reverts():
+        PalomaNodeSale.set_discount_reward_percentage(new_discount_percentage, new_reward_percentage, sender=recipient)
     new_slippage_percentage = 100
-    PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, new_slippage_percentage, sender=deployer)
-    assert PalomaNodeSale.referral_discount_percentage() == new_discount_percentage
-    assert PalomaNodeSale.referral_reward_percentage() == new_reward_percentage
+    PalomaNodeSale.set_slippage_fee_percentage(new_slippage_percentage, sender=deployer)
     assert PalomaNodeSale.slippage_fee_percentage() == new_slippage_percentage
     with ape.reverts():
-        PalomaNodeSale.set_referral_percentages(new_discount_percentage, new_reward_percentage, new_slippage_percentage, sender=recipient)
+        PalomaNodeSale.set_slippage_fee_percentage(new_slippage_percentage, sender=recipient)
 
     # set start end timestamp
     new_start_timestamp = 1722988800
-    new_end_timestamp = 1726876800
+    new_end_timestamp = 1735603199
     PalomaNodeSale.set_start_end_timestamp(new_start_timestamp, new_end_timestamp, sender=deployer)
     assert PalomaNodeSale.start_timestamp() == new_start_timestamp
     assert PalomaNodeSale.end_timestamp() == new_end_timestamp
@@ -219,7 +226,8 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x01\xf4\x82\xaf\x49\x44\x7d\x8a\x07\xe3\xbd\x95\xbd\x0d\x56\xf3\x52\x41\x52\x3f\xba\xb1'
     enhanced = True
     subscription_month = 24
-
+    own_promo_code = b'TEST1234'
+    own_promo_code1 = b'TEST2345'
     usdc = project.USDC.at("0xaf88d065e77c8cC2239327C5EDb3A432268e5831")
     weth = project.USDC.at("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1")
     pool = project.USDC.at("0xC6962004f452bE9203591991D15f6b388e09E8D0")
@@ -228,7 +236,7 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
 
     print(weth.balanceOf(deployer))
     print(deployer.balance)
-    PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, b'\x00' * 32, path, enhanced, subscription_month, sender=deployer, value=eth_amount)
+    PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, promo_code, path, enhanced, subscription_month, own_promo_code, sender=deployer, value=eth_amount)
     print(weth.balanceOf(deployer))
     print(deployer.balance)
 
@@ -244,7 +252,7 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
     # print(usdc.balanceOf(recipient))
     # PalomaNodeSale.pay_for_token("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
-    PalomaNodeSale.pay_for_token("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 105500000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
+    PalomaNodeSale.pay_for_token("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 105500000, 1, 50000000, own_promo_code, path, True, 1, own_promo_code1, sender=user)
     # print(usdt.balanceOf(user))
     # print(usdc.balanceOf(PalomaNodeSale))
     # print(usdt.balanceOf(PalomaNodeSale))
@@ -259,8 +267,18 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
         print(usdc.balanceOf(recipient))
 
     # refund pending amount
-    print(PalomaNodeSale.pendingRecipient(user))
+    print(PalomaNodeSale.pending_recipient(deployer))
+    assert PalomaNodeSale.pending_recipient(deployer) == recipient
+    print(PalomaNodeSale.pending(deployer, recipient))
+    assert PalomaNodeSale.pending(deployer, recipient) == 50000000
+    print(PalomaNodeSale.pending_recipient(user))
+    assert PalomaNodeSale.pending_recipient(user) == deployer
+    print(PalomaNodeSale.pending(user, deployer))
+    assert PalomaNodeSale.pending(user, deployer) == 4500000
+    print(PalomaNodeSale.pending_parent1_recipient(user))
+    assert PalomaNodeSale.pending_parent1_recipient(user) == recipient
     print(PalomaNodeSale.pending(user, recipient))
+    assert PalomaNodeSale.pending(user, recipient) == 500000
     # PalomaNodeSale.refund_pending_amount(user, sender=new_admin)
     # print(PalomaNodeSale.pendingRecipient(user))
     # print(PalomaNodeSale.pending(user, recipient))
@@ -295,7 +313,9 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
         PalomaNodeSale(sender=compass, data=payload)
     
     print(usdc.balanceOf(recipient))
+    assert PalomaNodeSale.claimable(recipient) == 500000
     PalomaNodeSale.claim(sender=recipient)
+    assert PalomaNodeSale.claimable(recipient) == 0
     print(usdc.balanceOf(recipient))
 
     with ape.reverts():
@@ -312,10 +332,11 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     usdc.transfer(bot, 1000000000, sender=user)
     assert usdc.balanceOf(bot) == 1000000000
     print(usdc.balanceOf(PalomaNodeSale))
+    own_promo_code2 = b'TEST3456'
     with ape.reverts():
-        factory.pay_for_token(user_id, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 55500000, 1, 50000000, b'\x00' * 32, path, False, 0, sender=compass)
-    func_sig = function_signature("pay_for_token(uint256,address,uint256,uint256,uint256,bytes32,bytes,bool,uint256)")
-    enc_abi = encode(["uint256","address","uint256","uint256","uint256","bytes32","bytes","bool","uint256"], [user_id, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 115500000, 1, 50000000, b'\x00' * 32, b'', True, 1])
+        factory.pay_for_token(user_id, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 55500000, 1, 50000000, own_promo_code1, path, False, 0, own_promo_code2, sender=compass)
+    func_sig = function_signature("pay_for_token(uint256,address,uint256,uint256,uint256,bytes32,bytes,bool,uint256,bytes32)")
+    enc_abi = encode(["uint256","address","uint256","uint256","uint256","bytes32","bytes","bool","uint256","bytes32"], [user_id, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 115500000, 1, 50000000, own_promo_code1, b'', True, 1, own_promo_code2])
     payload = func_sig + enc_abi + add_payload
     factory(sender=compass, data=payload)
     assert usdc.balanceOf(bot) == 894500000

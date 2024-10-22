@@ -12,7 +12,7 @@ interface ERC20:
     def transfer(_to: address, _value: uint256) -> bool: nonpayable
 
 interface PalomaNodeSale:
-    def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256): nonpayable
+    def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256, _own_promo_code: bytes32): nonpayable
     def activate_wallet(_paloma: bytes32): nonpayable
 
 interface Factory:
@@ -42,11 +42,11 @@ def __init__():
 
 @external
 @nonreentrant
-def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
+def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256, _own_promo_code: bytes32):
     self._factory_check()
     _nodesale: address = staticcall Factory(FACTORY).nodesale()
     assert extcall ERC20(_token_in).approve(_nodesale, _estimated_amount_in, default_return_value=True), "Failed approve"
-    extcall PalomaNodeSale(_nodesale).pay_for_token(_token_in, _estimated_amount_in, _estimated_node_count, _total_cost, _promo_code, _path, _enhanced, _subscription_month)
+    extcall PalomaNodeSale(_nodesale).pay_for_token(_token_in, _estimated_amount_in, _estimated_node_count, _total_cost, _promo_code, _path, _enhanced, _subscription_month, _own_promo_code)
     log PurchasedFiat(self, _token_in, _total_cost, _estimated_node_count, _promo_code)
 
 @external
