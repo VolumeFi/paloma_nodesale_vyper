@@ -131,14 +131,6 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     with ape.reverts():
         PalomaNodeSale.create_promo_code(promo_code, recipient, empty_promo_code, referral_discount_percentage, referral_reward_percentage, sender=recipient)
 
-    # remove_promo_code
-    # PalomaNodeSale.remove_promo_code(promo_code, sender=deployer)
-    # assert not PalomaNodeSale.promo_codes(promo_code).active
-
-    # # remove_promo_code_non_admin
-    # with ape.reverts():
-    #     PalomaNodeSale.remove_promo_code(promo_code, sender=recipient)
-
     # update_whitelist_amounts
     amount = 1000
     PalomaNodeSale.update_whitelist_amounts(whitelistacc, amount, sender=deployer)
@@ -163,20 +155,6 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     payload = func_sig + enc_abi + add_payload
     PalomaNodeSale(sender=compass, data=payload)
     assert PalomaNodeSale.whitelist_amounts(to) == 9
-
-    # set fee receiver
-    # new_fee_receiver = accounts[9]
-    # PalomaNodeSale.set_fee_receiver(new_fee_receiver, sender=deployer)
-    # assert PalomaNodeSale.fee_receiver() == new_fee_receiver
-    # with ape.reverts():
-    #     PalomaNodeSale.set_fee_receiver(new_fee_receiver, sender=recipient)
-
-    # set funds receiver
-    # new_funds_receiver = accounts[10]
-    # PalomaNodeSale.set_funds_receiver(new_funds_receiver, sender=deployer)
-    # assert PalomaNodeSale.funds_receiver() == new_funds_receiver
-    # with ape.reverts():
-    #     PalomaNodeSale.set_funds_receiver(new_funds_receiver, sender=recipient)
 
     # set processing fee
     new_processing_fee = 5000000
@@ -242,23 +220,9 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
 
     path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x00\x64\xFd\x08\x6b\xC7\xCD\x5C\x48\x1D\xCC\x9C\x85\xeb\xE4\x78\xA1\xC0\xb6\x9F\xCb\xb9'
     # pay for token
-    # usdt.approve(PalomaNodeSale, 106000000, sender=user)
     usdc.approve(PalomaNodeSale, 106000000, sender=user)
 
-    # print(usdt.balanceOf(user))
-    # print(usdc.balanceOf(PalomaNodeSale))
-    # print(usdt.balanceOf(PalomaNodeSale))
-    # print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
-    # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
-    # print(usdc.balanceOf(recipient))
-    # PalomaNodeSale.pay_for_token("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 106000000, 1, 50000000, b'\x01' * 32, path, True, 1, sender=user)
     PalomaNodeSale.pay_for_token("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 105500000, 1, 50000000, own_promo_code, path, True, 1, own_promo_code1, sender=user)
-    # print(usdt.balanceOf(user))
-    # print(usdc.balanceOf(PalomaNodeSale))
-    # print(usdt.balanceOf(PalomaNodeSale))
-    # print(usdc.balanceOf("0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"))
-    # print(usdc.balanceOf("0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"))
-    # print(usdc.balanceOf(recipient))
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).active == True
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).recipient == recipient
     print(usdc.balanceOf(recipient))
@@ -279,9 +243,6 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     assert PalomaNodeSale.pending_parent1_recipient(user) == recipient
     print(PalomaNodeSale.pending(user, recipient))
     assert PalomaNodeSale.pending(user, recipient) == 500000
-    # PalomaNodeSale.refund_pending_amount(user, sender=new_admin)
-    # print(PalomaNodeSale.pendingRecipient(user))
-    # print(PalomaNodeSale.pending(user, recipient))
 
     # node_sale
     count = 10
