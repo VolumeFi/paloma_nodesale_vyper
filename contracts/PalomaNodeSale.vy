@@ -33,6 +33,9 @@ struct ExactOutputParams:
 struct PromoCode:
     recipient: address
     active: bool
+    parent_promo_code: bytes32
+    referral_discount_percentage: uint256
+    referral_reward_percentage: uint256
 
 event Activated:
     sender: indexed(address)
@@ -65,6 +68,9 @@ event FeeChanged:
 event PromoCodeCreated:
     promo_code: bytes32
     recipient: address
+    parent_promo_code: bytes32
+    referral_discount_percentage: uint256
+    referral_reward_percentage: uint256
 
 event PromoCodeRemoved:
     promo_code: bytes32
@@ -79,10 +85,11 @@ event Purchased:
     node_count: uint256
     promo_code: bytes32
 
-event ReferralRewardPercentagesChanged:
-    referral_discount_percentage: uint256
-    referral_reward_percentage: uint256
+event SlippageFeePercentageChanged:
     slippage_fee_percentage: uint256
+
+event ParentFeePercentageChanged:
+    parent_fee_percentage: uint256
 
 event SetPaloma:
     paloma: bytes32
@@ -125,8 +132,7 @@ end_timestamp: public(uint256)
 processing_fee: public(uint256)
 subscription_fee: public(uint256)
 slippage_fee_percentage: public(uint256)
-referral_discount_percentage: public(uint256)
-referral_reward_percentage: public(uint256)
+parent_fee_percentage: public(uint256)
 
 nonces: public(HashMap[uint256, uint256])               # used in arb only
 subscription: public(HashMap[address, uint256])
@@ -135,11 +141,16 @@ paloma_history: public(HashMap[bytes32, bool])
 promo_codes: public(HashMap[bytes32, PromoCode])
 whitelist_amounts: public(HashMap[address, uint256])    # used in arb only
 claimable: public(HashMap[address, uint256])
-pendingRecipient: public(HashMap[address, address])
+pending_recipient: public(HashMap[address, address])
+pending_parent1_recipient: public(HashMap[address, address])
+pending_parent2_recipient: public(HashMap[address, address])
+pending_parent3_recipient: public(HashMap[address, address])
+pending_parent4_recipient: public(HashMap[address, address])
+
 pending: public(HashMap[address, HashMap[address, uint256]])
 
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256, _slippage_fee_percentage: uint256):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _slippage_fee_percentage: uint256, _parent_fee_percentage: uint256):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
@@ -148,9 +159,8 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     self.end_timestamp = _end_timestamp
     self.processing_fee = _processing_fee
     self.subscription_fee = _subscription_fee
-    self.referral_discount_percentage = _referral_discount_percentage
-    self.referral_reward_percentage = _referral_reward_percentage
     self.slippage_fee_percentage = _slippage_fee_percentage
+    self.parent_fee_percentage = _parent_fee_percentage
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
     WETH9 = staticcall ISwapRouter02(_swap_router).WETH9()
@@ -160,7 +170,8 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log FeeReceiverChanged(empty(address), _fee_receiver)
     log FeeChanged(_admin, _processing_fee, _subscription_fee)
     log StartEndTimestampChanged(_start_timestamp, _end_timestamp)
-    log ReferralRewardPercentagesChanged(_referral_discount_percentage, _referral_reward_percentage, _slippage_fee_percentage)
+    log SlippageFeePercentageChanged(_slippage_fee_percentage)
+    log ParentFeePercentageChanged(_parent_fee_percentage)
 
 @external
 def activate_wallet(_paloma: bytes32):
@@ -170,13 +181,10 @@ def activate_wallet(_paloma: bytes32):
     log Activated(msg.sender, _paloma)
 
 @external
-def create_promo_code(_promo_code: bytes32, _recipient: address):
+def create_promo_code(_promo_code: bytes32, _recipient: address, _parent_promo_code: bytes32, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
     self._admin_check()
+    self._create_promo_code(_promo_code, _recipient, _parent_promo_code, _referral_discount_percentage, _referral_reward_percentage)
 
-    assert _recipient != empty(address), "Recipient cannot be zero"
-    self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True)
-    log PromoCodeCreated(_promo_code, _recipient)
-    
 @external
 def remove_promo_code(_promo_code: bytes32):
     self._admin_check()
@@ -197,12 +205,40 @@ def refund_pending_amount(_to: address):
     self._admin_check()
     assert _to != empty(address), "invalid address"
 
-    _recipient: address = self.pendingRecipient[_to]
+    _recipient: address = self.pending_recipient[_to]
     if _recipient != empty(address):
         _pending: uint256 = self.pending[_to][_recipient]
         self.pending[_to][_recipient] = 0
-        self.pendingRecipient[_to] = empty(address)
+        self.pending_recipient[_to] = empty(address)
         assert extcall ERC20(REWARD_TOKEN).transfer(_to, _pending, default_return_value=True), "Processing Refund Failed"
+
+    _parent1_recipient: address = self.pending_parent1_recipient[_to]
+    if _parent1_recipient != empty(address):
+        _pending_parent1: uint256 = self.pending[_to][_parent1_recipient]
+        self.pending[_to][_parent1_recipient] = 0
+        self.pending_parent1_recipient[_to] = empty(address)
+        assert extcall ERC20(REWARD_TOKEN).transfer(_to, _pending_parent1, default_return_value=True), "Processing P1 Refund Failed"
+
+    _parent2_recipient: address = self.pending_parent2_recipient[_to]
+    if _parent2_recipient != empty(address):
+        _pending_parent2: uint256 = self.pending[_to][_parent2_recipient]
+        self.pending[_to][_parent2_recipient] = 0
+        self.pending_parent2_recipient[_to] = empty(address)
+        assert extcall ERC20(REWARD_TOKEN).transfer(_to, _pending_parent2, default_return_value=True), "Processing P2 Refund Failed"
+
+    _parent3_recipient: address = self.pending_parent3_recipient[_to]
+    if _parent3_recipient != empty(address):
+        _pending_parent3: uint256 = self.pending[_to][_parent3_recipient]
+        self.pending[_to][_parent3_recipient] = 0
+        self.pending_parent3_recipient[_to] = empty(address)
+        assert extcall ERC20(REWARD_TOKEN).transfer(_to, _pending_parent3, default_return_value=True), "Processing P3 Refund Failed"
+
+    _parent4_recipient: address = self.pending_parent4_recipient[_to]
+    if _parent4_recipient != empty(address):
+        _pending_parent4: uint256 = self.pending[_to][_parent4_recipient]
+        self.pending[_to][_parent4_recipient] = 0
+        self.pending_parent4_recipient[_to] = empty(address)
+        assert extcall ERC20(REWARD_TOKEN).transfer(_to, _pending_parent4, default_return_value=True), "Processing P4 Refund Failed"
 
 @external
 def node_sale(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
@@ -248,12 +284,40 @@ def update_paloma_history(_to: address):
     log PalomaAddressUpdated(_paloma)
     self.activates[_to] = empty(bytes32)
     
-    _recipient: address = self.pendingRecipient[_to]
+    _recipient: address = self.pending_recipient[_to]
     if _recipient != empty(address):
         _pending: uint256 = self.pending[_to][_recipient]
         self.claimable[_recipient] = unsafe_add(self.claimable[_recipient], _pending)
         self.pending[_to][_recipient] = 0
-        self.pendingRecipient[_to] = empty(address)
+        self.pending_recipient[_to] = empty(address)
+
+    _parent1_recipient: address = self.pending_parent1_recipient[_to]
+    if _parent1_recipient != empty(address):
+        _pending_parent1: uint256 = self.pending[_to][_parent1_recipient]
+        self.claimable[_parent1_recipient] = unsafe_add(self.claimable[_parent1_recipient], _pending_parent1)
+        self.pending[_to][_parent1_recipient] = 0
+        self.pending_parent1_recipient[_to] = empty(address)
+
+    _parent2_recipient: address = self.pending_parent2_recipient[_to]
+    if _parent2_recipient != empty(address):
+        _pending_parent2: uint256 = self.pending[_to][_parent2_recipient]
+        self.claimable[_parent2_recipient] = unsafe_add(self.claimable[_parent2_recipient], _pending_parent2)
+        self.pending[_to][_parent2_recipient] = 0
+        self.pending_parent2_recipient[_to] = empty(address)
+
+    _parent3_recipient: address = self.pending_parent3_recipient[_to]
+    if _parent3_recipient != empty(address):
+        _pending_parent3: uint256 = self.pending[_to][_parent3_recipient]
+        self.claimable[_parent3_recipient] = unsafe_add(self.claimable[_parent3_recipient], _pending_parent3)
+        self.pending[_to][_parent3_recipient] = 0
+        self.pending_parent3_recipient[_to] = empty(address)
+
+    _parent4_recipient: address = self.pending_parent4_recipient[_to]
+    if _parent4_recipient != empty(address):
+        _pending_parent4: uint256 = self.pending[_to][_parent4_recipient]
+        self.claimable[_parent4_recipient] = unsafe_add(self.claimable[_parent4_recipient], _pending_parent4)
+        self.pending[_to][_parent4_recipient] = 0
+        self.pending_parent4_recipient[_to] = empty(address)
 
 @external
 def sync_paloma_history(_paloma: bytes32):
@@ -264,26 +328,26 @@ def sync_paloma_history(_paloma: bytes32):
 @payable
 @external
 @nonreentrant
-def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
+def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256, _own_promo_code: bytes32):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
+    
     _processing_fee: uint256 = self.processing_fee
     _slippage_fee_percent: uint256 = self.slippage_fee_percentage
-    _amount_out: uint256 = _total_cost + _processing_fee
     _slippage_fee: uint256 = 0
     if _slippage_fee_percent > 0:
         _slippage_fee = unsafe_div(unsafe_mul(_total_cost, _slippage_fee_percent), 10000)
-        _amount_out = _amount_out + _slippage_fee
-
     _enhanced_fee: uint256 = 0
+    
     if _enhanced:
         assert _subscription_month > 0, "Invalid fee months"
         _enhanced_fee = self.subscription_fee * _subscription_month
-        _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
-
+    
+    _amount_out: uint256 = _total_cost + _processing_fee + _slippage_fee + _enhanced_fee
+    
     _params: ExactOutputParams = ExactOutputParams(
         path=_path,
         recipient=self,
@@ -295,17 +359,44 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     extcall WrappedEth(WETH9).deposit(value=msg.value)
     assert extcall ERC20(WETH9).approve(SWAP_ROUTER_02, msg.value, default_return_value=True), "Approve failed"
     _amount_in: uint256 = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
+    
     _referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]
     if _promo_code_info.active:
-        _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
+        _referral_reward = unsafe_div(unsafe_mul(_total_cost, _promo_code_info.referral_reward_percentage), 10000)
         if _referral_reward > 0:
-            self.pending[msg.sender][_promo_code_info.recipient] = self.pending[msg.sender][_promo_code_info.recipient] + _referral_reward
-            self.pendingRecipient[msg.sender] = _promo_code_info.recipient
+            if _promo_code_info.parent_promo_code != empty(bytes32):
+                _parent_reward: uint256 = unsafe_div(unsafe_mul(_total_cost, self.parent_fee_percentage), 10000)
+                _parent_promo_code_info_1: PromoCode = self.promo_codes[_promo_code_info.parent_promo_code]
+                if _parent_promo_code_info_1.parent_promo_code != empty(bytes32):
+                    _parent_promo_code_info_2: PromoCode = self.promo_codes[_parent_promo_code_info_1.parent_promo_code]
+                    if _parent_promo_code_info_2.parent_promo_code != empty(bytes32):
+                        _parent_promo_code_info_3: PromoCode = self.promo_codes[_parent_promo_code_info_2.parent_promo_code]
+                        if _parent_promo_code_info_3.parent_promo_code != empty(bytes32):
+                            _parent_promo_code_info_4: PromoCode = self.promo_codes[_parent_promo_code_info_3.parent_promo_code]
+                            if _parent_promo_code_info_4.active:
+                                _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                                self.pending[msg.sender][_parent_promo_code_info_4.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_4.recipient], _parent_reward)
+                                self.pending_parent4_recipient[msg.sender] = _parent_promo_code_info_4.recipient
+                        if _parent_promo_code_info_3.active:
+                            _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                            self.pending[msg.sender][_parent_promo_code_info_3.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_3.recipient], _parent_reward)
+                            self.pending_parent3_recipient[msg.sender] = _parent_promo_code_info_3.recipient
+                    if _parent_promo_code_info_2.active:
+                        _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                        self.pending[msg.sender][_parent_promo_code_info_2.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_2.recipient], _parent_reward)
+                        self.pending_parent2_recipient[msg.sender] = _parent_promo_code_info_2.recipient
+                if _parent_promo_code_info_1.active:
+                    _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                    self.pending[msg.sender][_parent_promo_code_info_1.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_1.recipient], _parent_reward)
+                    self.pending_parent1_recipient[msg.sender] = _parent_promo_code_info_1.recipient
 
-    _fund_amount: uint256 = _total_cost - _referral_reward
+            self.pending[msg.sender][_promo_code_info.recipient] = unsafe_add(self.pending[msg.sender][_promo_code_info.recipient], _referral_reward)
+            self.pending_recipient[msg.sender] = _promo_code_info.recipient
+
+    _fund_amount: uint256 = unsafe_sub(_total_cost, _referral_reward)
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
-    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee + _slippage_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, unsafe_add(_processing_fee, unsafe_add(_enhanced_fee, _slippage_fee)), default_return_value=True), "Processing Fee Failed"
 
     log Purchased(msg.sender, empty(address), _total_cost, _processing_fee, _enhanced_fee, _slippage_fee, _estimated_node_count, _promo_code)
 
@@ -314,31 +405,33 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
         extcall WrappedEth(WETH9).withdraw(_dust)
         send(msg.sender, _dust)
 
+    if self.promo_codes[_own_promo_code].recipient == empty(address):
+        self._create_promo_code(_own_promo_code, msg.sender, _promo_code, _promo_code_info.referral_discount_percentage, _promo_code_info.referral_reward_percentage)
+
 @external
 @nonreentrant
-def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256):
+def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256, _own_promo_code: bytes32):
     assert block.timestamp >= self.start_timestamp, "!start"
     assert block.timestamp < self.end_timestamp, "!end"
-    assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _estimated_amount_in, default_return_value=True), "Approve failed"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
+    assert _estimated_amount_in > 0, "Invalid estimate"
+    assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _estimated_amount_in, default_return_value=True), "Approve failed"
     assert extcall ERC20(_token_in).transferFrom(msg.sender, self, _estimated_amount_in, default_return_value=True), "Send Reward Failed"
 
     _processing_fee: uint256 = self.processing_fee
     _slippage_fee_percent: uint256 = self.slippage_fee_percentage
-    _amount_out: uint256 = _total_cost + _processing_fee
     _slippage_fee: uint256 = 0
     if _slippage_fee_percent > 0:
         _slippage_fee = unsafe_div(unsafe_mul(_total_cost, _slippage_fee_percent), 10000)
-        _amount_out = _amount_out + _slippage_fee
-
     _enhanced_fee: uint256 = 0
+
     if _enhanced:
         assert _subscription_month > 0, "Invalid fee months"
         _enhanced_fee = self.subscription_fee * _subscription_month
-        _amount_out = _amount_out + _enhanced_fee
         self.subscription[msg.sender] = unsafe_add(block.timestamp, unsafe_mul(2628000, _subscription_month)) # 2628000 = 1 month
 
+    _amount_out: uint256 = _total_cost + _processing_fee + _slippage_fee + _enhanced_fee
     _amount_in: uint256 = 0
 
     if _token_in != REWARD_TOKEN:
@@ -351,20 +444,46 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
         # Execute the swap
         _amount_in = extcall ISwapRouter02(SWAP_ROUTER_02).exactOutput(_params)
     else:
-        _amount_in = _total_cost + _processing_fee + _enhanced_fee + _slippage_fee
+        _amount_in = _amount_out
         assert _estimated_amount_in >= _amount_in, "Insufficient USDC"
 
     _referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]
     if _promo_code_info.active:
-        _referral_reward = unsafe_div(unsafe_mul(_total_cost, self.referral_reward_percentage), 10000)
+        _referral_reward = unsafe_div(unsafe_mul(_total_cost, _promo_code_info.referral_reward_percentage), 10000)
         if _referral_reward > 0:
-            self.pending[msg.sender][_promo_code_info.recipient] = self.pending[msg.sender][_promo_code_info.recipient] + _referral_reward
-            self.pendingRecipient[msg.sender] = _promo_code_info.recipient
+            if _promo_code_info.parent_promo_code != empty(bytes32):
+                _parent_reward: uint256 = unsafe_div(unsafe_mul(_total_cost, self.parent_fee_percentage), 10000)
+                _parent_promo_code_info_1: PromoCode = self.promo_codes[_promo_code_info.parent_promo_code]
+                if _parent_promo_code_info_1.parent_promo_code != empty(bytes32):
+                    _parent_promo_code_info_2: PromoCode = self.promo_codes[_parent_promo_code_info_1.parent_promo_code]
+                    if _parent_promo_code_info_2.parent_promo_code != empty(bytes32):
+                        _parent_promo_code_info_3: PromoCode = self.promo_codes[_parent_promo_code_info_2.parent_promo_code]
+                        if _parent_promo_code_info_3.parent_promo_code != empty(bytes32):
+                            _parent_promo_code_info_4: PromoCode = self.promo_codes[_parent_promo_code_info_3.parent_promo_code]
+                            if _parent_promo_code_info_4.active:
+                                _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                                self.pending[msg.sender][_parent_promo_code_info_4.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_4.recipient], _parent_reward)
+                                self.pending_parent4_recipient[msg.sender] = _parent_promo_code_info_4.recipient
+                        if _parent_promo_code_info_3.active:
+                            _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                            self.pending[msg.sender][_parent_promo_code_info_3.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_3.recipient], _parent_reward)
+                            self.pending_parent3_recipient[msg.sender] = _parent_promo_code_info_3.recipient
+                    if _parent_promo_code_info_2.active:
+                        _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                        self.pending[msg.sender][_parent_promo_code_info_2.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_2.recipient], _parent_reward)
+                        self.pending_parent2_recipient[msg.sender] = _parent_promo_code_info_2.recipient
+                if _parent_promo_code_info_1.active:
+                    _referral_reward = unsafe_sub(_referral_reward, _parent_reward)
+                    self.pending[msg.sender][_parent_promo_code_info_1.recipient] = unsafe_add(self.pending[msg.sender][_parent_promo_code_info_1.recipient], _parent_reward)
+                    self.pending_parent1_recipient[msg.sender] = _parent_promo_code_info_1.recipient
 
-    _fund_amount: uint256 = _total_cost - _referral_reward
+            self.pending[msg.sender][_promo_code_info.recipient] = unsafe_add(self.pending[msg.sender][_promo_code_info.recipient], _referral_reward)
+            self.pending_recipient[msg.sender] = _promo_code_info.recipient
+
+    _fund_amount: uint256 = unsafe_sub(_total_cost, _referral_reward)
     assert extcall ERC20(REWARD_TOKEN).transfer(self.funds_receiver, _fund_amount, default_return_value=True), "Processing Fund Failed"
-    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, _processing_fee + _enhanced_fee + _slippage_fee, default_return_value=True), "Processing Fee Failed"
+    assert extcall ERC20(REWARD_TOKEN).transfer(self.fee_receiver, unsafe_add(_processing_fee, unsafe_add(_enhanced_fee, _slippage_fee)), default_return_value=True), "Processing Fee Failed"
 
     log Purchased(msg.sender, _token_in, _total_cost, _processing_fee, _enhanced_fee, _slippage_fee, _estimated_node_count, _promo_code)
 
@@ -372,6 +491,9 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     if _dust > 0:
         assert extcall ERC20(_token_in).transfer(msg.sender, _dust, default_return_value=True), "Processing Dust Failed"
 
+    if self.promo_codes[_own_promo_code].recipient == empty(address):
+        self._create_promo_code(_own_promo_code, msg.sender, _promo_code, _promo_code_info.referral_discount_percentage, _promo_code_info.referral_reward_percentage)
+        
 @external
 @nonreentrant
 def claim():
@@ -413,25 +535,23 @@ def set_processing_fee(_new_processing_fee: uint256, _new_subscription_fee: uint
     log FeeChanged(msg.sender, _new_processing_fee, _new_subscription_fee)
 
 @external
-def set_referral_percentages(
-    _new_referral_discount_percentage: uint256,
-    _new_referral_reward_percentage: uint256,
-    _new_slippage_fee_percentage: uint256,
-):
+def set_slippage_fee_percentage(_new_slippage_fee_percentage: uint256):
     self._admin_check()
 
-    assert _new_referral_discount_percentage <= 9900, "Discount p exceed"
-    assert _new_referral_reward_percentage <= 9900, "Reward p exceed"
     assert _new_slippage_fee_percentage <= 9900, "Slippage p exceed"
-    self.referral_discount_percentage = _new_referral_discount_percentage
-    self.referral_reward_percentage = _new_referral_reward_percentage
+    assert _new_slippage_fee_percentage >= 0, "Slippage cant zero"
     self.slippage_fee_percentage = _new_slippage_fee_percentage
-    log ReferralRewardPercentagesChanged(
-        _new_referral_discount_percentage,
-        _new_referral_reward_percentage,
-        _new_slippage_fee_percentage,
-    )
+    log SlippageFeePercentageChanged(_new_slippage_fee_percentage)
 
+@external
+def set_parent_fee_percentage(_new_parent_fee_percentage: uint256):
+    self._admin_check()
+
+    assert _new_parent_fee_percentage <= 9900, "Parent p exceed"
+    assert _new_parent_fee_percentage >= 0, "Parent cant zero"
+    self.parent_fee_percentage = _new_parent_fee_percentage
+    log ParentFeePercentageChanged(_new_parent_fee_percentage)
+    
 @external
 def set_start_end_timestamp(
     _new_start_timestamp: uint256,
@@ -467,6 +587,18 @@ def _admin_check():
 def _paloma_check():
     assert msg.sender == self.compass, "Not compass"
     assert self.paloma == convert(slice(msg.data, unsafe_sub(len(msg.data), 32), 32), bytes32), "Invalid paloma"
+
+@internal
+def _create_promo_code(_promo_code: bytes32, _recipient: address, _parent_promo_code: bytes32, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
+    assert _recipient != empty(address), "Recipient cannot be zero"
+    assert _promo_code != empty(bytes32), "Promocode cant be zero"
+    assert _referral_discount_percentage <= 9900, "Discount p exceed"
+    assert _referral_reward_percentage <= 9900, "Reward p exceed"
+    assert _referral_discount_percentage > 0, "Discount p zero"
+    assert _referral_reward_percentage > 0, "Reward p zero"
+
+    self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True, parent_promo_code=_parent_promo_code, referral_discount_percentage=_referral_discount_percentage, referral_reward_percentage=_referral_reward_percentage)
+    log PromoCodeCreated(_promo_code, _recipient, _parent_promo_code, _referral_discount_percentage, _referral_reward_percentage)
 
 @external
 @payable
