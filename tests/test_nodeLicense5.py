@@ -38,7 +38,6 @@ def PalomaNodeSale(deployer, compass, project):
         5000000,
         50000000,
         500,
-        1000,
         100
     )
     funcSig = function_signature("set_paloma()")
@@ -100,7 +99,8 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     assert PalomaNodeSale.compass() == compass
     assert PalomaNodeSale.funds_receiver() == "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"
     assert PalomaNodeSale.fee_receiver() == "0xADC5ee42cbF40CD4ae29bDa773F468A659983B74"
-    assert PalomaNodeSale.slippage_fee_percentage() == 100
+    assert PalomaNodeSale.slippage_fee_percentage() == 500
+    assert PalomaNodeSale.parent_fee_percentage() == 100
 
     # activate_wallet
     paloma_wcc = encode(["bytes32"], [b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd4\x5d\x0b\xee\xea\xc4\xc2\xf2\x36\x22\x3a\x70\x27\x80\x76\x6e\xb2\x80\x03\x9c'])
@@ -109,12 +109,23 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
 
     # create_promo_code test
     promo_code = b'\x01' * 32
-    PalomaNodeSale.create_promo_code(promo_code, recipient, sender=deployer)
+    empty_promo_code = b'\x00' * 32
+    parent1_promo_code = b'\x02' * 32
+    parent2_promo_code = b'\x03' * 32
+    parent3_promo_code = b'\x04' * 32
+    parent4_promo_code = b'\x05' * 32
+    referral_discount_percentage = 500
+    referral_reward_percentage = 1000
+    PalomaNodeSale.create_promo_code(promo_code, recipient, empty_promo_code, referral_discount_percentage, referral_reward_percentage, sender=deployer)
+    PalomaNodeSale.create_promo_code(parent1_promo_code, whitelistacc, promo_code, referral_discount_percentage, referral_reward_percentage, sender=deployer)
+    PalomaNodeSale.create_promo_code(parent2_promo_code, accounts[4], parent1_promo_code, referral_discount_percentage, referral_reward_percentage, sender=deployer)
+    PalomaNodeSale.create_promo_code(parent3_promo_code, accounts[5], parent2_promo_code, referral_discount_percentage, referral_reward_percentage, sender=deployer)
+    PalomaNodeSale.create_promo_code(parent4_promo_code, accounts[6], parent3_promo_code, referral_discount_percentage, referral_reward_percentage, sender=deployer)
     assert PalomaNodeSale.promo_codes(promo_code).recipient == recipient
 
     # create_promo_code_non_admin
     with ape.reverts():
-        PalomaNodeSale.create_promo_code(promo_code, recipient, sender=recipient)
+        PalomaNodeSale.create_promo_code(promo_code, recipient, empty_promo_code, referral_discount_percentage, referral_reward_percentage, sender=recipient)
 
     # remove_promo_code
     # PalomaNodeSale.remove_promo_code(promo_code, sender=deployer)
