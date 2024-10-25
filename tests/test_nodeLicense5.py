@@ -41,6 +41,7 @@ def PalomaNodeSale(deployer, compass, project):
         100,
         500,
         1000,
+        17000,
     )
     funcSig = function_signature("set_paloma()")
     addPayload = encode(["bytes32"], [b'123456'])
@@ -212,17 +213,22 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     usdt = project.USDC.at("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9")
     user = "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D"
 
+    before = usdc.balanceOf(PalomaNodeSale.funds_receiver())
     print(weth.balanceOf(deployer))
     print(deployer.balance)
     PalomaNodeSale.pay_for_eth(estimated_node_count, total_cost, promo_code, path, enhanced, subscription_month, own_promo_code, sender=deployer, value=eth_amount)
     print(weth.balanceOf(deployer))
     print(deployer.balance)
 
+    assert usdc.balanceOf(PalomaNodeSale.funds_receiver()) == before + 450000000
+
     path = b'\xaf\x88\xd0\x65\xe7\x7c\x8c\xc2\x23\x93\x27\xc5\xed\xb3\xa4\x32\x26\x8e\x58\x31\x00\x00\x64\xFd\x08\x6b\xC7\xCD\x5C\x48\x1D\xCC\x9C\x85\xeb\xE4\x78\xA1\xC0\xb6\x9F\xCb\xb9'
     # pay for token
     usdc.approve(PalomaNodeSale, 106000000, sender=user)
 
+    before = usdc.balanceOf(PalomaNodeSale.funds_receiver())
     PalomaNodeSale.pay_for_token("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 105500000, 1, 50000000, own_promo_code, path, True, 1, own_promo_code1, sender=user)
+    assert usdc.balanceOf(PalomaNodeSale.funds_receiver()) == before + 45000000
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).active == True
     assert PalomaNodeSale.promo_codes(b'\x01' * 32).recipient == recipient
     print(usdc.balanceOf(recipient))
