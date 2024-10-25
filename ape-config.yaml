@@ -14,6 +14,9 @@ foundry:
     ethereum:
       mainnet:
         upstream_provider: alchemy
+        gas_limit:
+          auto:
+            multiplier: 1.2  # Multiply 1.2 times the result of eth_estimateGas
     arbitrum:
       mainnet:
         upstream_provider: alchemy
@@ -29,6 +32,10 @@ ethereum:
   default_network: mainnet-fork
   mainnet_fork:
     default_provider: foundry
+    gas_limit:
+      auto:
+        multiplier: 1.2  # Multiply 1.2 times the result of eth_estimateGas
+
 arbitrum:
   default_network: mainnet-fork
   mainnet_fork:
