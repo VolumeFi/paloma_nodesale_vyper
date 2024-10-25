@@ -120,12 +120,14 @@ event PalomaAddressSynced:
 event PalomaAddressUpdated:
     paloma: bytes32
 
+event GrainAmountUpdated:
+    new_amount: uint256
+
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
 
-GRAINS_PER_NODE: constant(uint256) = 50000
-
+grains_per_node: public(uint256)
 paloma: public(bytes32)
 admin: public(address)
 compass: public(address)
@@ -154,7 +156,7 @@ pending_parent2_recipient: public(HashMap[address, address])
 pending: public(HashMap[address, HashMap[address, uint256]])
 
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _slippage_fee_percentage: uint256, _parent_fee_percentage: uint256, _default_discount_percentage: uint256, _default_reward_percentage: uint256):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _slippage_fee_percentage: uint256, _parent_fee_percentage: uint256, _default_discount_percentage: uint256, _default_reward_percentage: uint256, _grains_per_node: uint256):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
@@ -167,6 +169,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     self.parent_fee_percentage = _parent_fee_percentage
     self.default_discount_percentage = _default_discount_percentage
     self.default_reward_percentage = _default_reward_percentage
+    self.grains_per_node = _grains_per_node
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
     WETH9 = staticcall ISwapRouter02(_swap_router).WETH9()
@@ -179,6 +182,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log SlippageFeePercentageChanged(_slippage_fee_percentage)
     log ParentFeePercentageChanged(_parent_fee_percentage)
     log DefaultDiscountRewardPercentageChanged(_default_discount_percentage, _default_reward_percentage)
+    log GrainAmountUpdated(_grains_per_node)
 
 @external
 def activate_wallet(_paloma: bytes32):
@@ -188,9 +192,22 @@ def activate_wallet(_paloma: bytes32):
     log Activated(msg.sender, _paloma)
 
 @external
+def create_promo_code_by_chain(_promo_code: bytes32, _recipient: address, _parent_promo_code: bytes32, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
+    self._paloma_check()
+    self._create_promo_code(_promo_code, _recipient, _parent_promo_code, _referral_discount_percentage, _referral_reward_percentage)
+
+@external
 def create_promo_code(_promo_code: bytes32, _recipient: address, _parent_promo_code: bytes32, _referral_discount_percentage: uint256, _referral_reward_percentage: uint256):
     self._admin_check()
     self._create_promo_code(_promo_code, _recipient, _parent_promo_code, _referral_discount_percentage, _referral_reward_percentage)
+
+@external
+def remove_promo_code_by_chain(_promo_code: bytes32):
+    self._paloma_check()
+
+    assert self.promo_codes[_promo_code].recipient != empty(address), "Promo code does not exist"
+    self.promo_codes[_promo_code].active = False  # 'active' is set to False
+    log PromoCodeRemoved(_promo_code)
 
 @external
 def remove_promo_code(_promo_code: bytes32):
@@ -242,7 +259,7 @@ def node_sale(_to: address, _count: uint256, _nonce: uint256, _paloma: bytes32):
     assert self.nonces[_nonce] == 0, "Already emited"
     assert _paloma != empty(bytes32), "Not activated"
     
-    _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
+    _grain_amount: uint256 = unsafe_mul(_count, self.grains_per_node)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
@@ -260,7 +277,7 @@ def redeem_from_whitelist(_to: address, _count: uint256, _nonce: uint256, _palom
     assert _whitelist_amounts >= _count, "Invalid whitelist amount"
 
     self.whitelist_amounts[_to] = unsafe_sub(_whitelist_amounts, _count)
-    _grain_amount: uint256 = unsafe_mul(_count, GRAINS_PER_NODE)
+    _grain_amount: uint256 = unsafe_mul(_count, self.grains_per_node)
     log NodeSold(_to, _paloma, _count, _grain_amount, _nonce)
     self.nonces[_nonce] = block.timestamp
     extcall COMPASS(self.compass).emit_nodesale_event(_to, _paloma, _count, _grain_amount)
@@ -312,7 +329,11 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
     assert block.timestamp < self.end_timestamp, "!end"
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
-    
+    assert _own_promo_code != empty(bytes32), "invalid promo"
+
+    if self.promo_codes[_own_promo_code].recipient == empty(address):
+        self._create_promo_code(_own_promo_code, msg.sender, _promo_code, self.default_discount_percentage, self.default_reward_percentage)
+
     _processing_fee: uint256 = self.processing_fee
     _slippage_fee_percent: uint256 = self.slippage_fee_percentage
     _slippage_fee: uint256 = 0
@@ -352,9 +373,6 @@ def pay_for_eth(_estimated_node_count: uint256, _total_cost: uint256, _promo_cod
         extcall WrappedEth(WETH9).withdraw(_dust)
         send(msg.sender, _dust)
 
-    if self.promo_codes[_own_promo_code].recipient == empty(address):
-        self._create_promo_code(_own_promo_code, msg.sender, _promo_code, self.default_discount_percentage, self.default_reward_percentage)
-
 @external
 @nonreentrant
 def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256, _own_promo_code: bytes32):
@@ -363,8 +381,12 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     assert _estimated_node_count > 0, "Invalid node count"
     assert _total_cost > 0, "Invalid total cost"
     assert _estimated_amount_in > 0, "Invalid estimate"
+    assert _own_promo_code != empty(bytes32), "invalid promo"
     assert extcall ERC20(_token_in).approve(SWAP_ROUTER_02, _estimated_amount_in, default_return_value=True), "Approve failed"
     assert extcall ERC20(_token_in).transferFrom(msg.sender, self, _estimated_amount_in, default_return_value=True), "Send Reward Failed"
+
+    if self.promo_codes[_own_promo_code].recipient == empty(address):
+        self._create_promo_code(_own_promo_code, msg.sender, _promo_code, self.default_discount_percentage, self.default_reward_percentage)
 
     _processing_fee: uint256 = self.processing_fee
     _slippage_fee_percent: uint256 = self.slippage_fee_percentage
@@ -405,9 +427,6 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     _dust: uint256 = unsafe_sub(_estimated_amount_in, _amount_in)
     if _dust > 0:
         assert extcall ERC20(_token_in).transfer(msg.sender, _dust, default_return_value=True), "Processing Dust Failed"
-
-    if self.promo_codes[_own_promo_code].recipient == empty(address):
-        self._create_promo_code(_own_promo_code, msg.sender, _promo_code, self.default_discount_percentage, self.default_reward_percentage)
 
 @external
 @nonreentrant
@@ -493,6 +512,15 @@ def set_start_end_timestamp(
     log StartEndTimestampChanged(_new_start_timestamp, _new_end_timestamp)
 
 @external
+def update_grain_amount(
+    _new_amount: uint256,
+):
+    self._admin_check()
+    assert _new_amount > 0, "Invalid grain amount"
+    self.grains_per_node = _new_amount
+    log GrainAmountUpdated(_new_amount)
+
+@external
 def update_admin(_new_admin: address):
     self._admin_check()
 
@@ -522,7 +550,7 @@ def _create_promo_code(_promo_code: bytes32, _recipient: address, _parent_promo_
     assert _referral_discount_percentage <= 9900, "Discount p exceed"
     assert _referral_reward_percentage <= 9900, "Reward p exceed"
     assert _referral_discount_percentage > 0, "Discount p zero"
-    assert _referral_reward_percentage > 0, "Reward p zero"
+    assert _referral_reward_percentage > unsafe_mul(self.parent_fee_percentage, 2), "Reward p zero"
 
     self.promo_codes[_promo_code] = PromoCode(recipient=_recipient, active=True, parent_promo_code=_parent_promo_code, referral_discount_percentage=_referral_discount_percentage, referral_reward_percentage=_referral_reward_percentage)
     log PromoCodeCreated(_promo_code, _recipient, _parent_promo_code, _referral_discount_percentage, _referral_reward_percentage)
@@ -530,9 +558,11 @@ def _create_promo_code(_promo_code: bytes32, _recipient: address, _parent_promo_
 @internal
 def _process_parents_reward(_promo_code: bytes32, _total_cost: uint256) -> uint256:
     _referral_reward: uint256 = 0
+    _total_referral_reward: uint256 = 0
     _promo_code_info: PromoCode = self.promo_codes[_promo_code]
     if _promo_code_info.active:
         _referral_reward = unsafe_div(unsafe_mul(_total_cost, _promo_code_info.referral_reward_percentage), 10000)
+        _total_referral_reward = _referral_reward
         if _referral_reward > 0:
             if _promo_code_info.parent_promo_code != empty(bytes32):
                 _parent_reward: uint256 = unsafe_div(unsafe_mul(_total_cost, self.parent_fee_percentage), 10000)
@@ -551,7 +581,7 @@ def _process_parents_reward(_promo_code: bytes32, _total_cost: uint256) -> uint2
             self.pending[msg.sender][_promo_code_info.recipient] = unsafe_add(self.pending[msg.sender][_promo_code_info.recipient], _referral_reward)
             self.pending_recipient[msg.sender] = _promo_code_info.recipient
 
-    return _referral_reward
+    return _total_referral_reward
     
 @external
 @payable
