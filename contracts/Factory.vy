@@ -8,7 +8,7 @@
 """
 interface FiatBot:
     def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256, _own_promo_code: bytes32): nonpayable
-    def activate_wallet(_paloma: bytes32): nonpayable
+    def activate_wallet(_paloma: bytes32, _purchased_in_v1: bool): nonpayable
     def refund(_recipient: address, _token: address, _amount: uint256): nonpayable
 
 event BotCreated:
@@ -92,11 +92,11 @@ def pay_for_token(_user_id: uint256, _token_in: address, _estimated_amount_in: u
     extcall FiatBot(self.bot_info[_user_id]).pay_for_token(_token_in, _estimated_amount_in, _estimated_node_count, _total_cost, _promo_code, _path, _enhanced, _subscription_month, _own_promo_code)
 
 @external
-def activate_wallet(_user_id: uint256, _paloma: bytes32):
+def activate_wallet(_user_id: uint256, _paloma: bytes32, _purchased_in_v1: bool):
     self._paloma_check()
     assert _user_id > 0, "Invalid user id"
     assert self.bot_info[_user_id] != empty(address), "Bot not created"
-    extcall FiatBot(self.bot_info[_user_id]).activate_wallet(_paloma)
+    extcall FiatBot(self.bot_info[_user_id]).activate_wallet(_paloma, _purchased_in_v1)
 
 @external
 def refund(_user_id: uint256, _recipient: address, _token: address, _amount: uint256):

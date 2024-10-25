@@ -13,7 +13,7 @@ interface ERC20:
 
 interface PalomaNodeSale:
     def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_node_count: uint256, _total_cost: uint256, _promo_code: bytes32, _path: Bytes[204], _enhanced: bool, _subscription_month: uint256, _own_promo_code: bytes32): nonpayable
-    def activate_wallet(_paloma: bytes32): nonpayable
+    def activate_wallet(_paloma: bytes32, _purchased_in_v1: bool): nonpayable
 
 interface Factory:
     def nodesale() -> address: view
@@ -50,10 +50,10 @@ def pay_for_token(_token_in: address, _estimated_amount_in: uint256, _estimated_
     log PurchasedFiat(self, _token_in, _total_cost, _estimated_node_count, _promo_code)
 
 @external
-def activate_wallet(_paloma: bytes32):
+def activate_wallet(_paloma: bytes32, _purchased_in_v1: bool):
     self._factory_check()
     _nodesale: address = staticcall Factory(FACTORY).nodesale()
-    extcall PalomaNodeSale(_nodesale).activate_wallet(_paloma)
+    extcall PalomaNodeSale(_nodesale).activate_wallet(_paloma, _purchased_in_v1)
     log ActivatedFiat(self, _paloma)
 
 @external
