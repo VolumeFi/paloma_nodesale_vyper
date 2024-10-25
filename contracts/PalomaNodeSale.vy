@@ -24,6 +24,10 @@ interface ISwapRouter02:
     def exactOutput(params: ExactOutputParams) -> uint256: payable
     def WETH9() -> address: view
 
+interface V1ContractInterface:
+    def activate_wallet(_paloma: bytes32): nonpayable
+    def paloma_history(_paloma: bytes32) -> bool: view
+
 struct ExactOutputParams:
     path: Bytes[204]
     recipient: address
@@ -126,6 +130,7 @@ event GrainAmountUpdated:
 REWARD_TOKEN: public(immutable(address))
 SWAP_ROUTER_02: public(immutable(address))
 WETH9: public(immutable(address))
+V1_CONTRACT: public(immutable(address))
 
 grains_per_node: public(uint256)
 paloma: public(bytes32)
@@ -156,7 +161,7 @@ pending_parent2_recipient: public(HashMap[address, address])
 pending: public(HashMap[address, HashMap[address, uint256]])
 
 @deploy
-def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _slippage_fee_percentage: uint256, _parent_fee_percentage: uint256, _default_discount_percentage: uint256, _default_reward_percentage: uint256, _grains_per_node: uint256):
+def __init__(_compass: address, _swap_router: address, _reward_token: address, _admin: address, _fund_receiver: address, _fee_receiver: address, _start_timestamp: uint256, _end_timestamp: uint256, _processing_fee: uint256, _subscription_fee: uint256, _slippage_fee_percentage: uint256, _parent_fee_percentage: uint256, _default_discount_percentage: uint256, _default_reward_percentage: uint256, _grains_per_node: uint256, _v1_contract: address):
     self.compass = _compass
     self.admin = _admin
     self.funds_receiver = _fund_receiver
@@ -173,6 +178,7 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     REWARD_TOKEN = _reward_token
     SWAP_ROUTER_02 = _swap_router
     WETH9 = staticcall ISwapRouter02(_swap_router).WETH9()
+    V1_CONTRACT = _v1_contract
     log UpdateCompass(empty(address), _compass)
     log UpdateAdmin(empty(address), _admin)
     log FundsReceiverChanged(empty(address), _fund_receiver)
@@ -185,9 +191,16 @@ def __init__(_compass: address, _swap_router: address, _reward_token: address, _
     log GrainAmountUpdated(_grains_per_node)
 
 @external
-def activate_wallet(_paloma: bytes32):
+def activate_wallet(_paloma: bytes32, _purchased_in_v1: bool):
     assert _paloma != empty(bytes32), "Invalid addr"
     assert self.paloma_history[_paloma] == False, "Already used"
+    
+    v1_paloma_history: bool = staticcall V1ContractInterface(V1_CONTRACT).paloma_history(_paloma)
+    assert v1_paloma_history == False, "Already used in V1"
+
+    if _purchased_in_v1:
+        extcall V1ContractInterface(V1_CONTRACT).activate_wallet(_paloma)
+
     self.activates[msg.sender] = _paloma
     log Activated(msg.sender, _paloma)
 

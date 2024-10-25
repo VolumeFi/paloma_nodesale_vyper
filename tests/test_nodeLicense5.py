@@ -42,6 +42,7 @@ def PalomaNodeSale(deployer, compass, project):
         500,
         1000,
         17000,
+        "0x249cE7e8c5A0f7300f9c45Af70c644b39dABa4dB",  # V1 contract
     )
     funcSig = function_signature("set_paloma()")
     addPayload = encode(["bytes32"], [b'123456'])
@@ -108,8 +109,8 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     assert PalomaNodeSale.default_reward_percentage() == 1000
 
     # activate_wallet
-    paloma_wcc = encode(["bytes32"], [b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd4\x5d\x0b\xee\xea\xc4\xc2\xf2\x36\x22\x3a\x70\x27\x80\x76\x6e\xb2\x80\x03\x9c'])
-    PalomaNodeSale.activate_wallet(paloma_wcc, sender=deployer)
+    paloma_wcc = encode(["bytes32"], [b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd4\x5d\x0b\xee\xea\xc4\xc2\xf2\x36\x22\x3a\x70\x27\x80\x76\x6e\xb2\x80\x03\x9c'])
+    PalomaNodeSale.activate_wallet(paloma_wcc, True, sender=deployer)
     assert PalomaNodeSale.activates(deployer) == paloma_wcc
 
     # create_promo_code test
@@ -145,7 +146,7 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     count = 1
     nonce_val = 2
     to = accounts[8]
-    PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=to)
+    PalomaNodeSale.activate_wallet(b'\x01' * 32, True, sender=to)
     PalomaNodeSale.update_whitelist_amounts(to, 10, sender=deployer)
     assert PalomaNodeSale.whitelist_amounts(to) == 10
     func_sig = function_signature("redeem_from_whitelist(address,uint256,uint256,bytes32)")
@@ -253,7 +254,7 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     # node_sale
     count = 10
     nonce_val = 1
-    PalomaNodeSale.activate_wallet(b'\x02' * 32, sender=user)
+    PalomaNodeSale.activate_wallet(b'\x02' * 32, True, sender=user)
     func_sig = function_signature("node_sale(address,uint256,uint256,bytes32)")
     enc_abi = encode(["address", "uint256", "uint256", "bytes32"], [user, count, nonce_val, b'\x02' * 32])
     add_payload = encode(["bytes32"], [b'123456'])
@@ -286,7 +287,7 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     print(usdc.balanceOf(recipient))
 
     with ape.reverts():
-        PalomaNodeSale.activate_wallet(b'\x01' * 32, sender=user)
+        PalomaNodeSale.activate_wallet(b'\x01' * 32, True, sender=user)
 
     user_id = 1
     func_sig = function_signature("create_bot(uint256)")
@@ -308,9 +309,9 @@ def test_paloma_node_sale(PalomaNodeSale, blueprint, factory, deployer, compass,
     factory(sender=compass, data=payload)
     assert usdc.balanceOf(bot) == 894500000
     with ape.reverts():
-        factory.activate_wallet(user_id, b'\x03' * 32, sender=compass)
-    func_sig = function_signature("activate_wallet(uint256,bytes32)")
-    enc_abi = encode(["uint256","bytes32"], [user_id, b'\x03' * 32])
+        factory.activate_wallet(user_id, b'\x03' * 32, True, sender=compass)
+    func_sig = function_signature("activate_wallet(uint256,bytes32,bool)")
+    enc_abi = encode(["uint256","bytes32","bool"], [user_id, b'\x03' * 32, True])
     payload = func_sig + enc_abi + add_payload
     factory(sender=compass, data=payload)
     assert PalomaNodeSale.activates(bot) == b'\x03' * 32
