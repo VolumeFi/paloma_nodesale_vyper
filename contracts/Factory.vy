@@ -11,6 +11,9 @@ interface FiatBot:
     def activate_wallet(_paloma: bytes32, _purchased_in_v1: bool): nonpayable
     def refund(_recipient: address, _token: address, _amount: uint256): nonpayable
 
+interface Compass:
+    def slc_switch() -> bool: view
+    
 event BotCreated:
     user_id: uint256
     bot: address
