@@ -13,7 +13,7 @@ interface FiatBot:
 
 interface Compass:
     def slc_switch() -> bool: view
-    
+
 event BotCreated:
     user_id: uint256
     bot: address
@@ -57,7 +57,10 @@ def update_blueprint(_new_blueprint: address):
 
 @external
 def update_compass(_new_compass: address):
-    self._paloma_check()
+    _compass: address = self.compass
+    assert msg.sender == _compass, "Not compass"
+    assert not staticcall Compass(_compass).slc_switch(), "SLC is unavailable"
+    
     assert _new_compass != empty(address), "Invalid compass"
     self.compass = _new_compass
     log UpdateCompass(msg.sender, _new_compass)
