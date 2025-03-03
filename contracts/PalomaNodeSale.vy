@@ -14,6 +14,9 @@ interface WrappedEth:
     def deposit(): payable
     def withdraw(amount: uint256): nonpayable
     
+interface Compass:
+    def slc_switch() -> bool: view
+
 interface ERC20:
     def approve(_spender: address, _value: uint256) -> bool: nonpayable
     def transfer(_to: address, _value: uint256) -> bool: nonpayable
@@ -542,8 +545,11 @@ def update_admin(_new_admin: address):
 
 @external
 def update_compass(_new_compass: address):
-    self._paloma_check()
+    _compass: address = self.compass
+    assert msg.sender == _compass, "Not compass"
+    assert not staticcall Compass(_compass).slc_switch(), "SLC is unavailable"
     
+    assert _new_compass != empty(address), "Invalid compass"
     self.compass = _new_compass
     log UpdateCompass(msg.sender, _new_compass)
 
