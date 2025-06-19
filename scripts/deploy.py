@@ -2,7 +2,7 @@ from ape import accounts, project, networks
 
 def main():
     start_timestamp = 1724371200        # Aug 23 gmt+0
-    end_timestamp = 1735603200          # Dec 31 gmt+0
+    end_timestamp = 1751328000          # Dec 31 gmt+0
     processing_fee = 5000000            # 5 USDC
     subscription_fee = 50000000         # 50 USDC per month
     parent_fee_percentage = 100         # 1%
@@ -16,7 +16,7 @@ def main():
     # ARB 
     with networks.parse_network_choice("arbitrum:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = "0x82Ed642F4067D55cE884e2823951baDfEdC89e73"
+        compass = "0x3c1864a873879139C1BD87c7D95c4e475A91d19C"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"     # USDC
         fund_receiver = "0x460FcDf30bc935c8a3179AF4dE8a40b635a53294"    # Fund
@@ -46,7 +46,7 @@ def main():
     # ETH
     with networks.parse_network_choice("ethereum:mainnet") as provider:
         acct = accounts.load("Deployer")
-        compass = "0xDcBd07EEC1D48aE0A14E61dD09BB5AA9c7ed391d"
+        compass = "0x71956340a586db3afD10C2645Dbe8d065dD79AC8"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"     # USDC 
         fund_receiver = "0x3E1912cb4A2fF0aF856B17dCAEA94976297b69a5"    # Fund
@@ -76,7 +76,7 @@ def main():
     # BSC
     with networks.parse_network_choice("bsc:mainnet") as provider:
         acct = accounts.load("Deployer")
-        compass = "0x042Ab4cd2897BA02a420146af8d95f161A4230F1"
+        compass = "0xEb1981B0bC9C8ED8eE5F95D5ad0494B848020413"
         swap_router = "0xB971eF87ede563556b2ED4b1C0b0019111Dd85d2"      # SWAP_ROUTER_02
         reward_token = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"     # USDC
         fund_receiver = "0x58b604EfAC11396A3F11e948A650f26ab5485E3d"    # Fund
@@ -109,7 +109,7 @@ def main():
     # MATIC
     with networks.parse_network_choice("polygon:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = "0x26f5Da70095d69103ba8b2Ee264A20cD4B590EAb"
+        compass = "0x6aC565F13FEE0f5D44D76036Aa6461Fb1A9D8b4B"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"     # USDC
         fund_receiver = "0xCd7aCE03416089FEae6e11245f1c74593Da10a4B"    # Fund
@@ -139,7 +139,7 @@ def main():
     # BASE 
     with networks.parse_network_choice("base:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = "0x7cd976c5029FDA0dF0124490d00D7fBa25a64E19"
+        compass = "0x105230D0ee3ADB4E07654Eb35ad88E32Be791814"
         swap_router = "0x2626664c2603336E57B271c5C0b26F421741e481"      # SWAP_ROUTER_02
         reward_token = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"     # USDC
         fund_receiver = "0x782376edF93423DF3FB7b1C651D7Ab7303dEA615"    # Fund
@@ -169,7 +169,7 @@ def main():
     # OP
     with networks.parse_network_choice("optimism:mainnet:alchemy") as provider:
         acct = accounts.load("Deployer")
-        compass = "0x5a7A8fAf7f73063b4F175E4eF354B6426aF3bd52"
+        compass = "0xa41886cFA7f2d8cE8Dc15670DDD25eD890822856"
         swap_router = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"      # SWAP_ROUTER_02
         reward_token = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"     # USDC
         fund_receiver = "0x2DEAE8EdBA2A1B3Dc863Fa3864F41E2a56768Ee8"    # Fund
